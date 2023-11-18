@@ -1,0 +1,20 @@
+---
+title: "Hepatisis data analysis"
+output:
+  html_document: 
+      number_sections: true 
+---
+
+# Introduction 
+
+First rows of our data frame.
+
+
+```{r}
+df <- read.table("hepatitis.data",sep = ",")
+colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","Liver Big","Liver Firm","Spleen Palpable","Spiders","Ascites","Varices","Bilirubin","Alk Phosphate","Sgot","Albumin","Protime","Histology") # nolint
+```
+
+```{r}
+head(df)
+```
