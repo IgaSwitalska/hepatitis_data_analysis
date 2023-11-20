@@ -1,8 +1,9 @@
 ---
 title: "Hepatisis data analysis"
 output:
-  html_document: 
-      number_sections: true 
+  pdf_document: default
+  html_document:
+    number_sections: yes
 ---
 
 ```{r, warning=FALSE, message=FALSE}
@@ -12,6 +13,12 @@ library(caret)
 library(RANN)
 library(corrplot)
 library(plotly)
+library(ggplot2)
+library(resample)
+library(DataExplorer)
+library(imputeMulti)
+library(mice)
+library(rmarkdown)
 ```
 
 # Introduction 
@@ -34,6 +41,9 @@ head(df)
 df[df == "?"] <- NA
 
 df <- mutate_all(df, function(x) as.numeric(as.character(x)))
+categorical <- c(1, 3:14, 20)
+df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
+df[, categorical] <-  lapply(df[, categorical], as.factor)
 ```
 
 ```{r}
@@ -44,31 +54,203 @@ vis_dat(df)
 ```
 
 ```{r}
-df2 <- df
-data_transform <- preProcess(df2, method = "knnImpute")
-# data_transform <- preProcess(df, method = "bagImpute")
+plot_missing(df)
+```
 
-df2 <- predict(data_transform, df2)
+```{r}
+md.pattern(df)
+```
+
+
+```{r}
+df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
+data_transform <- preProcess(df.new, method = "knnImpute")
+data_transform2 <- preProcess(df.new, method = "bagImpute")
+data_transform3 <- preProcess(df.new, method = "medianImpute")
+
+df1 <- predict(data_transform, df.new)
+df2 <- predict(data_transform2, df.new)
+df3 <- predict(data_transform3, df.new)
+
+df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
+df3[c(4:14, 16:17, 19)] <- round(df3[c(4:14, 16:17, 19)])
+
 ```
 
 
 ```{r echo=FALSE}
 for (i in 1:20) {
-  column <- df[, i]
+  column <- df.new[, i]
   if (i %in% c(15, 18)) {
-    df2[, i] <- df2[, i] * sd(na.omit(column)) + mean(na.omit(column))
+    df1[, i] <- df1[, i] * sd(na.omit(column)) + mean(na.omit(column))
   } else {
-    df2[, i] <- round(df2[, i] * sd(na.omit(column)) + mean(na.omit(column)))
+    df1[, i] <- round(df1[, i] * sd(na.omit(column)) + mean(na.omit(column)))
   }
 }
 
-categorical <- c(1, 3:14, 20)
-df2[, categorical] <- replace(df2[, categorical], df2[, categorical] == 2, 0)
-df2[, categorical] <-  lapply(df2[, categorical], as.factor)
+# categorical <- c(1, 3:14, 20)
+# df1[, categorical] <- replace(df1[, categorical], df1[, categorical] == 2, 0)
+# df1[, categorical] <-  lapply(df1[, categorical], as.factor)
 # df2[, c(2, 16:17, 19)] <- lapply(df2[, c(2, 16:17, 19)], as.integer)
 ```
 
 ```{r fig1, fig.height = 10, fig.width = 10, fig.align = 'center'}
 cor_matrix <- cor(df2[, sapply(df2, is.numeric)], method = "pearson")
 corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+```
+
+```{r}
+methods = c(" "," "," ","logreg"," ","logreg","logreg","logreg","logreg","logreg","logreg","logreg","logreg","logreg","pmm","pmm","pmm","pmm","pmm"," ")
+imp_single <- mice(df, m = 1, method = methods) # Impute missing values
+df4 <- complete(imp_single)         # Store imputed data
+
+imp_multi <- mice(df, method = methods)  # Impute missing values multiple times
+df5 <- complete(imp_multi, 1)
+```
+
+```{r}
+# pmm, predictive mean matching (numeric data) 
+# logreg, logistic regression imputation (binary data, factor with 2 levels) 
+```
+
+
+```{r}
+summary(df)
+summary(df1)
+summary(df2)
+summary(df3)
+summary(df4)
+summary(df5)
+```
+
+```{r}
+colVars(na.omit(df))
+colVars(df2)
+colVars(df3)
+colVars(df4)
+colVars(df5)
+```
+
+```{r}
+n <- 9
+missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
+Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
+Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
+ 
+data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
+ 
+ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.title = element_blank())
+```
+
+```{r}
+n <- 10
+missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
+Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
+Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
+ 
+data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
+ 
+ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.title = element_blank())
+```
+
+```{r}
+n <- 11
+missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
+Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
+Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
+ 
+data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
+ 
+ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.title = element_blank())
+```
+
+```{r}
+n <- 12
+missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
+Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
+Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
+ 
+data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
+ 
+ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.title = element_blank())
+```
+
+```{r}
+n <- 13
+missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
+Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
+Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
+ 
+data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
+ 
+ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.title = element_blank())
+```
+
+```{r}
+n <- 14
+missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
+Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
+Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
+ 
+data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
+ 
+ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.title = element_blank())
+```
+
+```{r echo=FALSE}
+# n <- 15
+# xrange <- range(df2[n])
+# col.false <- rgb(0,1,0,0.5)
+# col.true  <- rgb(1,0,0,0.5)
+# hist(df[n][df[1] == 1], xlim=xrange, prob=T,col=col.false, main="Histogram of df[15]")
+# hist(df2[n][df2[1] == 1], prob=T, col=col.true, add=T)
+# legend("topleft", fill=c(col.false, col.true), legend=levels(Churn.))
+```
+
+# ```{r echo=FALSE}
+# col.cat.with.mv <- c(4)
+# imputeEM_none <- multinomial_impute(df[col.cat.with.mv], method = "EM", conj_prior = "non.informative", verbose = TRUE)
+# ```
+
+```{r}
+plot_histogram(df)
+plot_bar(df)
+plot_qq(df)
+plot_boxplot(df, by="Class")
+
+## Charts: continuous quantitative data
+# Typical questions:
+  # 
+  # - Uni- or multi-modal distribution?
+  # - Symmetric or left- / right-skewed distribution?
+  # - Mode / modal interval?
+  # - Does the distribution resemble a normal, uniform distribution?
+
+## Charts: discrete quantitative data
+# Typical questions:
+  #   
+  #   - The most frequent value?
+  #   - min / max?
+  #   - Frequencies of consecutive values?
+
+## Charts: qualitative data
+  # Analysis within groups: Why do customers leave?
 ```
