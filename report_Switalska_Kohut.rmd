@@ -23,6 +23,8 @@ library(repr)
 
 library(tidyverse)
 library(flextable)
+library(imbalance)
+library(cowplot)
 ```
 
 # Introduction 
@@ -73,6 +75,7 @@ data_transform2 <- preProcess(df.new, method = "bagImpute")
 data_transform3 <- preProcess(df.new, method = "medianImpute")
 
 df1 <- predict(data_transform, df.new)
+df1.standarized <- df1
 df2 <- predict(data_transform2, df.new)
 df3 <- predict(data_transform3, df.new)
 
@@ -80,22 +83,22 @@ df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
 df3[c(4:14, 16:17, 19)] <- round(df3[c(4:14, 16:17, 19)])
 
 ```
-
-
 ```{r echo=FALSE}
-for (i in 1:20) {
-  column <- df.new[, i]
-  if (i %in% c(15, 18)) {
-    df1[, i] <- df1[, i] * sd(na.omit(column)) + mean(na.omit(column))
-  } else {
-    df1[, i] <- round(df1[, i] * sd(na.omit(column)) + mean(na.omit(column)))
+unstandarize <- function(data){
+  for (i in 1:20) {
+    column <- df.new[, i]
+    if (i %in% c(15, 18)) {
+      data[, i] <- data[, i] * sd(na.omit(column)) + mean(na.omit(column))
+    } else {
+      data[, i] <- round(data[, i] * sd(na.omit(column)) + mean(na.omit(column)))
+    }
   }
+  return(data)
 }
+```
 
-# categorical <- c(1, 3:14, 20)
-# df1[, categorical] <- replace(df1[, categorical], df1[, categorical] == 2, 0)
-# df1[, categorical] <-  lapply(df1[, categorical], as.factor)
-# df2[, c(2, 16:17, 19)] <- lapply(df2[, c(2, 16:17, 19)], as.integer)
+```{r}
+df1 <- unstandarize(df1)
 ```
 
 ```{r results="hide"}
@@ -277,10 +280,10 @@ plot_bar(na.omit(df_all), by = "method", by_position = "dodge")
 ```
 
 Insights:
-* We have more men than women in the dataset. Moreover no women died. This may suggest that men are more likely to die from hepatitis.
-* Taking antiviral medications reduces the likelihood of death.
-* Almost all of the people who died had symptoms of fatigue and increased liver.
-* Histology and spiders might be important (?)
+  * We have more men than women in the dataset. Moreover no women died. This may suggest that men are more likely to die from hepatitis.
+  * Taking antiviral medications reduces the likelihood of death.
+  * Almost all of the people who died had symptoms of fatigue and increased liver.
+  * Histology and spiders might be important (?)
 ```{r}
 df1[, categorical] <-  lapply(df1[, categorical], as.factor)
 
@@ -288,19 +291,31 @@ plot_bar(na.omit(df1[-21]), by = "Class", by_position = "dodge")
 ```
 
 ## Boxplots
+Ability to separate objects from different classes: Protime, Albumin, Bilirubin.
 ```{r}
 plot_boxplot(df1, by = "Class")
 ```
-```{r}
-numeric_cols <- c("Age", "Bilirubin", "AlkPhosphate", "Sgot", "Albumin", "Protime")
 
-ggplot(df1, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3)
-```
+## Correlation
+We can observe two outliers (people with high Bilirubin)
 
 ```{r fig1, fig.height = 10, fig.width = 10, fig.align = 'center'}
-cor_matrix <- cor(df2[, sapply(df2, is.numeric)], method = "pearson")
+
+cor_matrix <- cor(df1[, sapply(df1, is.numeric)], method = "pearson")
 corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 ```
+```{r}
+# numeric_cols <- c("Age", "Bilirubin", "AlkPhosphate", "Sgot", "Albumin", "Protime")
+
+p1 <- ggplot(df1, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3)
+p2 <- ggplot(df1, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=3)
+p3 <- ggplot(df1, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=3)
+p4 <- ggplot(df1, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3)
+
+plot_grid(p1, p2, p3, p4, labels = "AUTO")
+
+```
+
 ```{r echo=FALSE}
 # plot_histogram(df)
 # plot_bar(df)
@@ -324,4 +339,91 @@ corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 
 ## Charts: qualitative data
   # Analysis within groups: Why do customers leave?
+```
+
+
+# Clasification
+```{r}
+inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
+train <- df1[inTrain,]
+train.standarized <- df1.standarized[inTrain,]
+test <- df1[-inTrain,]
+```
+## Solving class imbalance problem
+```{r}
+# oversampling
+n_new <- sum(train$Class == 0) - sum(train$Class == 1)
+
+newMWMOTE <- mwmote(train.standarized, numInstances = n_new)
+newMWMOTE <- unstandarize(newMWMOTE)
+train.balanced <- rbind(train[-21], newMWMOTE)
+```
+```{r}
+plotComparison(train[-21], train.balanced, attrs = c("Bilirubin","Albumin", "Protime"))
+```
+
+## Linear regression
+
+### Oversampling
+
+```{r}
+to_numeric <- function(data) {
+  data[,categorical] <- lapply(data[, categorical], as.numeric)
+  data[,categorical] <- data[,categorical] - 1
+  return(data)
+}
+```
+```{r}
+train.balanced.num <- to_numeric(train.balanced)
+train.num <- to_numeric(train)
+test.num <- to_numeric(test)
+```
+
+```{r}
+model.0 <- lm(Class~., data=train.balanced.num) 
+summary(model.0)
+```
+Models of two variables based on boxplots.
+```{r}
+# two variables
+model.1 <- lm(Class~Albumin+Bilirubin, data=train.balanced.num) 
+model.2 <- lm(Class~Albumin+AlkPhosphate, data=train.balanced.num) 
+model.3 <- lm(Class~Albumin+Protime, data=train.balanced.num) 
+model.4 <- lm(Class~Bilirubin+Protime, data=train.balanced.num) 
+
+a1 <- -model.1$coefficients['Albumin']/model.1$coefficients['Bilirubin']
+b1 <- -(model.1$coefficients['(Intercept)']-0.5)/model.1$coefficients['Bilirubin']
+a2 <- -model.2$coefficients['Albumin']/model.2$coefficients['AlkPhosphate']
+b2 <- -(model.2$coefficients['(Intercept)']-0.5)/model.2$coefficients['AlkPhosphate']
+a3 <- -model.3$coefficients['Albumin']/model.3$coefficients['Protime']
+b3 <- -(model.3$coefficients['(Intercept)']-0.5)/model.3$coefficients['Protime']
+a4 <- -model.4$coefficients['Bilirubin']/model.4$coefficients['Protime']
+b4 <- -(model.4$coefficients['(Intercept)']-0.5)/model.4$coefficients['Protime']
+# confusion.matrix1 <- table(round(pred1), test$Class)
+# confusionMatrix(confusion.matrix1, positive = "1")
+```
+
+```{r}
+# two variables
+p1 <- ggplot(test, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3) + geom_abline(slope=a1,intercept=b1)
+p2 <- ggplot(test, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=3) + geom_abline(slope=a2,intercept=b2)
+p3 <- ggplot(test, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=a3,intercept=b3)
+p4 <- ggplot(test, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=a4,intercept=b4)
+
+# title <- ggdraw() + draw_label("Comparison of linear regression classifiers", fontface='bold')
+plot_grid(p1, p2, p3, p4, ncol=2,labels = "AUTO")
+```
+```{r}
+# model.2 <- lm(Class~Sex+Anorexia+Spiders+Bilirubin, data=train.balanced.num) 
+# pred2   <- predict(model.2, test.num)
+
+# confusion.matrix2 <- table(round(pred2), test.num$Class)
+# confusionMatrix(confusion.matrix2, positive = "1")
+```
+### Tresholding
+
+```{r}
+model.tr.0 <- lm(Class~., data=train.num[-21]) 
+pred.tr.0 <- predict(model.tr.0, test.num[-21]) 
+confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
 ```
