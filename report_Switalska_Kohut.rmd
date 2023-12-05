@@ -1,9 +1,9 @@
 ---
 title: "Hepatisis data analysis"
 output:
-  pdf_document: default
   html_document:
     number_sections: yes
+  pdf_document: default
 ---
 
 ```{r, warning=FALSE, message=FALSE}
@@ -20,17 +20,23 @@ library(imputeMulti)
 library(mice)
 library(rmarkdown)
 library(repr)
-
 library(tidyverse)
 library(flextable)
 library(imbalance)
 library(cowplot)
 ```
 
-# Introduction 
+# Introduction. Data description
+
+## Problem description 
+
+We chose data: B) Medical diagnostics: Hepatitis Data Set. http://archive.ics.uci.edu/ml/datasets/Hepatitis
+
+The main aim of our project is to analyze the dataset with clinical trial results of people with hepatitis and try to evaluate death risk. Hepatitis is a serious disease, inflammation of the liver from any cause, and it can lead to the death of a person. We want to find better diagnostic methods that should help to determine the risk of death due to hepatitis. 
+
+## Data characteristics
 
 First rows of our data frame.
-
 
 ```{r}
 df <- read.table("hepatitis.data", sep = ",")
@@ -43,6 +49,11 @@ head(df)
 ```
 
 # Preparing data
+
+## Data types
+
+We initially had the wrong data types, so we changed them to the correct ones.
+
 ```{r}
 df[df == "?"] <- NA
 
@@ -52,21 +63,36 @@ df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
 df[, categorical] <-  lapply(df[, categorical], as.factor)
 ```
 
-```{r}
-sum(rowSums(is.na(df)) != 0) # we cannot remove these rows!
-sum(is.na(df))
-vis_dat(df)
-# vis_dat(df2)
-```
+## Missing values 
+
+There are 5 features without missing values, 10 with a small amount, 4 with an allowed number, and 1 (Protime) with almost half of the missing values.
 
 ```{r}
 plot_missing(df)
 ```
 
+In all, we have 75 rows with missing values, which have a total of 167 missing values. So we can not remove these rows.
+
 ```{r}
-md.pattern(df)
+sum(rowSums(is.na(df)) != 0)
+sum(is.na(df))
 ```
 
+We can see that the majority of variables have missing values only in several attributes, but there exist objects with several non-missing characteristics. 
+
+```{r}
+vis_dat(df)
+```
+
+```{r, echo=FALSE}
+# md.pattern(df)
+```
+
+## Add missing values 
+
+We used several methods to impute missing values: knnImpute, bagImpute, medianImpute, and function with different methods for different attributes (predictive mean matching for numeric data and logistic regression imputation for binary data where a factor is with 2 levels)
+
+We need all numerical valuesto use the first 3 methods.
 
 ```{r}
 df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
@@ -75,14 +101,12 @@ data_transform2 <- preProcess(df.new, method = "bagImpute")
 data_transform3 <- preProcess(df.new, method = "medianImpute")
 
 df1 <- predict(data_transform, df.new)
-df1.standarized <- df1
 df2 <- predict(data_transform2, df.new)
 df3 <- predict(data_transform3, df.new)
-
-df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
-df3[c(4:14, 16:17, 19)] <- round(df3[c(4:14, 16:17, 19)])
-
 ```
+
+Since knnImpute returns normalized data, we need to return to the initial form. Also, we have to round values for categorical variables.
+
 ```{r echo=FALSE}
 unstandarize <- function(data){
   for (i in 1:20) {
@@ -98,21 +122,21 @@ unstandarize <- function(data){
 ```
 
 ```{r}
+df1.standarized <- df1
+df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
+df3[c(4:14, 16:17, 19)] <- round(df3[c(4:14, 16:17, 19)])
 df1 <- unstandarize(df1)
 ```
 
+In this function we impute missing values 1 time (df4), and 5 times in order to get better results (df5)
+
 ```{r results="hide"}
-methods = c(" "," "," ","logreg"," ","logreg","logreg","logreg","logreg","logreg","logreg","logreg","logreg","logreg","pmm","pmm","pmm","pmm","pmm"," ")
+methods = c(" ", " ", " ", "logreg", " ", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "pmm", "pmm", "pmm", "pmm", "pmm", " ")
 imp_single <- mice(df, m = 1, method = methods) # Impute missing values
 df4 <- complete(imp_single)         # Store imputed data
 
 imp_multi <- mice(df, method = methods)  # Impute missing values multiple times
 df5 <- complete(imp_multi, 1)
-```
-
-```{r}
-# pmm, predictive mean matching (numeric data) 
-# logreg, logistic regression imputation (binary data, factor with 2 levels) 
 ```
 
 ```{r echo=FALSE}
@@ -155,15 +179,11 @@ ggplot(df_all, aes(x = Protime, color = method)) +
   facet_grid(Class ~ .)
 ```
 
-```{r echo=FALSE}
-# col.cat.with.mv <- c(4)
-# imputeEM_none <- multinomial_impute(df[col.cat.with.mv], method = "EM", conj_prior = "non.informative", verbose = TRUE)
- ```
-
 # EDA
 
 ## Summary
 Below we present basic statistics for continuous variables for various types of missing data substitutions. The statics are not significantly different. However, density functions must also be taken into account. They will tell us more about distribution.
+
 ```{r echo=FALSE}
 stats1 <- df_all %>%
   group_by(method) %>%
