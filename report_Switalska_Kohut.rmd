@@ -107,7 +107,7 @@ df3 <- predict(data_transform3, df.new)
 
 Since knnImpute returns normalized data, we need to return to the initial form. Also, we have to round values for categorical variables.
 
-```{r echo=FALSE}
+```{r, echo=FALSE}
 unstandarize <- function(data){
   for (i in 1:20) {
     column <- df.new[, i]
@@ -130,7 +130,7 @@ df1 <- unstandarize(df1)
 
 In this function we impute missing values 1 time (df4), and 5 times in order to get better results (df5)
 
-```{r results="hide"}
+```{r, results="hide"}
 methods = c(" ", " ", " ", "logreg", " ", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "pmm", "pmm", "pmm", "pmm", "pmm", " ")
 imp_single <- mice(df, m = 1, method = methods) # Impute missing values
 df4 <- complete(imp_single)         # Store imputed data
@@ -139,44 +139,40 @@ imp_multi <- mice(df, method = methods)  # Impute missing values multiple times
 df5 <- complete(imp_multi, 1)
 ```
 
-```{r echo=FALSE}
+Now, let's check if the distribution has changed.
+
+```{r, echo=FALSE}
 df$method <-  c(rep("omit", nrow(df)))
 df1$method <- c(rep("knn", nrow(df1)))
 df2$method <- c(rep("bag tree", nrow(df2)))
 df3$method <- c(rep("median", nrow(df3)))
+df4$method <- c(rep("mice single", nrow(df4)))
 df5$method <- c(rep("mice", nrow(df5)))
-df_all <- rbind(df, df1, df2, df3, df5)
+df_all <- rbind(df, df1, df2, df3, df4, df5)
 df_all$method <- as.factor(df_all$method)
 ```
-```{r echo=FALSE}
-# n <- 9 # 10, 11, 12, 13, 14
-# missingness <- c(rep("With Missings", 2), rep("Post Imputation: knnImpute", 2), rep("Post Imputation: bagImpute", 2), rep("Post Imputation: mediumImpute", 2), rep("Post Imputation: mice", 2), rep("Post Imputation: multiply mice", 2)) # Pre/post imputation
-# Category <- as.factor(rep(names(table(df[n])), 6))                   # Categories
-# Count <- c(as.numeric(table(df[n])), as.numeric(table(df1[n])), as.numeric(table(df2[n])), as.numeric(table(df3[n])), as.numeric(table(df4[n])), as.numeric(table(df5[n])))     # Count of categories
- 
-# data_barplot <- data.frame(missingness, Category, Count)           # Combine data for plot
- 
 
-# ggplot(data_barplot, aes(Category, Count, fill = missingness)) +   # Create plot
-#   geom_bar(stat = "identity", position = "dodge") + 
-#   scale_fill_brewer(palette = "Set2") +
-#   theme(legend.title = element_blank())
-```
-```{r echo=FALSE}
-# ggplot(df_all, aes(x = LiverBig, fill = method)) +   # Create plot
-#   scale_fill_brewer(palette = "Set2") +
-#   geom_bar(position = "dodge")
-```
-```{r echo=FALSE}
-# ggplot(df_all, aes(x = Protime, fill = method)) +
-#   geom_density(alpha = 0.5)
+```{r fig3, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE}
+ggplot(df_all, aes(x = LiverFirm, fill = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_bar(position = "dodge")
 ```
 
-```{r fig2, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r fig2, fig.height = 7, fig.width = 7, fig.align = 'center', warning=FALSE, message=FALSE}
 ggplot(df_all, aes(x = Protime, color = method)) +
   scale_fill_brewer(palette = "Set2") +
-  geom_density(size = 1.25) +
+  geom_density(size = 1.1) +
   facet_grid(Class ~ .)
+```
+
+We can see, that the median method works badly for the attribute with lots of missing values (we have such a feature), so we can not use it. For the rest, results are similar, but we can also skip mice.single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn, bag tree, and mice. 
+
+```{r echo=FALSE}
+df_all <- rbind(df, df1, df2, df5)
+df_all$method <- as.factor(df_all$method)
+
+df_all <- rbind(df, df1, df2, df3, df5)
+df_all$method <- as.factor(df_all$method)
 ```
 
 # EDA
@@ -252,6 +248,7 @@ stats6 <- df_all %>%
 stats6$col <- "Protime"
 all_stats <- bind_rows(stats1, stats2, stats3, stats4, stats5, stats6)
 ```
+
 ```{r echo=FALSE}
 numeric_cols <- c("Age", "Bilirubin", "AlkPhosphate", "Sgot", "Albumin", "Protime")
 stats <- c("min"," q1", "median", "mean", "q3", "max", "std")
@@ -293,17 +290,26 @@ all_stats2 %>%
     align(align = "center", part = "header") %>% 
     autofit()
 ```
+
 ## Barplots
 
 ```{r}
 plot_bar(na.omit(df_all), by = "method", by_position = "dodge")
 ```
 
+```{r}
+plot_bar(na.omit(df), by = "method", by_position = "dodge")
+```
 Insights:
+
   * We have more men than women in the dataset. Moreover no women died. This may suggest that men are more likely to die from hepatitis.
+  
   * Taking antiviral medications reduces the likelihood of death.
+  
   * Almost all of the people who died had symptoms of fatigue and increased liver.
+  
   * Histology and spiders might be important (?)
+  
 ```{r}
 df1[, categorical] <-  lapply(df1[, categorical], as.factor)
 
