@@ -24,6 +24,7 @@ library(tidyverse)
 library(flextable)
 library(imbalance)
 library(cowplot)
+library(MASS)
 ```
 
 # Introduction. Data description
@@ -364,6 +365,7 @@ plot_grid(p1, p2, p3, p4, labels = "AUTO")
 
 # Clasification
 ```{r}
+set.seed(123) 
 inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
 train <- df1[inTrain,]
 train.standarized <- df1.standarized[inTrain,]
@@ -386,7 +388,7 @@ plotComparison(train[-21], train.balanced, attrs = c("Bilirubin","Albumin", "Pro
 
 ### Oversampling
 
-```{r}
+```{r echo=FALSE}
 to_numeric <- function(data) {
   data[,categorical] <- lapply(data[, categorical], as.numeric)
   data[,categorical] <- data[,categorical] - 1
@@ -404,46 +406,108 @@ model.0 <- lm(Class~., data=train.balanced.num)
 summary(model.0)
 ```
 Models of two variables based on boxplots.
+```{r echo=FALSE}
+slope <- function(model){
+  -model$coefficients[2]/model$coefficients[3]
+}
+intercept <- function(model){
+  -(model$coefficients[1]-0.5)/model$coefficients[3]
+}
+lr_pred <- function(model,test,thr){
+  pred <- predict(model, test)
+  pred[pred > thr] = 1
+  pred[pred < thr] = 0
+  return(pred)
+}
+lda_pred <- function(model,test,thr){
+  pred <- predict(model,test)$posterior[,2]
+  pred[pred > thr] = 1
+  pred[pred < thr] = 0
+  return(pred)
+}
+metrices <- function(pred, real){
+  confusion.matrix <- table(pred, real)
+  a <- sum(diag(confusion.matrix))/sum(confusion.matrix)
+  r <- recall(confusion.matrix, relevant = "1")
+  p <- precision(confusion.matrix, relevant = "1")
+  f <- 2 * p * r / (p + r)
+  return(c(a,r,p,f))
+}
+```
 ```{r}
 # two variables
 model.1 <- lm(Class~Albumin+Bilirubin, data=train.balanced.num) 
 model.2 <- lm(Class~Albumin+AlkPhosphate, data=train.balanced.num) 
 model.3 <- lm(Class~Albumin+Protime, data=train.balanced.num) 
 model.4 <- lm(Class~Bilirubin+Protime, data=train.balanced.num) 
-
-a1 <- -model.1$coefficients['Albumin']/model.1$coefficients['Bilirubin']
-b1 <- -(model.1$coefficients['(Intercept)']-0.5)/model.1$coefficients['Bilirubin']
-a2 <- -model.2$coefficients['Albumin']/model.2$coefficients['AlkPhosphate']
-b2 <- -(model.2$coefficients['(Intercept)']-0.5)/model.2$coefficients['AlkPhosphate']
-a3 <- -model.3$coefficients['Albumin']/model.3$coefficients['Protime']
-b3 <- -(model.3$coefficients['(Intercept)']-0.5)/model.3$coefficients['Protime']
-a4 <- -model.4$coefficients['Bilirubin']/model.4$coefficients['Protime']
-b4 <- -(model.4$coefficients['(Intercept)']-0.5)/model.4$coefficients['Protime']
-# confusion.matrix1 <- table(round(pred1), test$Class)
-# confusionMatrix(confusion.matrix1, positive = "1")
+model.5 <- lm(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.balanced.num) 
 ```
 
 ```{r}
 # two variables
-p1 <- ggplot(test, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3) + geom_abline(slope=a1,intercept=b1)
-p2 <- ggplot(test, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=3) + geom_abline(slope=a2,intercept=b2)
-p3 <- ggplot(test, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=a3,intercept=b3)
-p4 <- ggplot(test, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=a4,intercept=b4)
+p1 <- ggplot(test, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.1),intercept=intercept(model.1))
+p2 <- ggplot(test, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.2),intercept=intercept(model.2))
+p3 <- ggplot(test, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.3),intercept=intercept(model.3))
+p4 <- ggplot(test, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.4),intercept=intercept(model.4))
 
 # title <- ggdraw() + draw_label("Comparison of linear regression classifiers", fontface='bold')
 plot_grid(p1, p2, p3, p4, ncol=2,labels = "AUTO")
 ```
 ```{r}
 # model.2 <- lm(Class~Sex+Anorexia+Spiders+Bilirubin, data=train.balanced.num) 
-# pred2   <- predict(model.2, test.num)
+All <- metrices(lr_pred(model.0, test.num, 0.5), test.num$Class)
+Albumin.Bilirubin <- metrices(lr_pred(model.1, test.num, 0.5), test.num$Class)
+Albumin.AlkPhosphate <- metrices(lr_pred(model.2, test.num, 0.5), test.num$Class)
+Albumin.Protime <- metrices(lr_pred(model.3, test.num, 0.5), test.num$Class)
+Bilirubin.Protime <- metrices(lr_pred(model.4, test.num, 0.5), test.num$Class)
+Important <- metrices(lr_pred(model.5, test.num, 0.5), test.num$Class)
 
-# confusion.matrix2 <- table(round(pred2), test.num$Class)
-# confusionMatrix(confusion.matrix2, positive = "1")
+lr_metrices <- data.frame(All, Important, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Protime, Bilirubin.Protime)
+lr_metrices <- round(lr_metrices,2)
+lr_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices)
+
+lr_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
 ```
 ### Tresholding
 
 ```{r}
-model.tr.0 <- lm(Class~., data=train.num[-21]) 
-pred.tr.0 <- predict(model.tr.0, test.num[-21]) 
-confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
+# model.tr.0 <- lm(Class~., data=train.num[-21]) 
+# pred.tr.0 <- predict(model.tr.0, test.num[-21]) 
+# metrices(lr_pred(model.tr.0, test.num[-21], 0.1), test.num$Class)
+# confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
+```
+
+## LDA 
+
+
+```{r}
+model.0 <- lda(Class~., data=train.num[-21]) 
+metrices(lda_pred(model.0, test.num[-21], 0.5), test.num[-21]$Class)
+
+model.1 <- lda(Class~Albumin+Bilirubin, data=train.num[-21]) 
+model.2 <- lda(Class~Albumin+AlkPhosphate, data=train.num[-21]) 
+model.3 <- lda(Class~Albumin+Protime, data=train.num[-21]) 
+model.4 <- lda(Class~Bilirubin+Protime, data=train.num[-21])
+model.5 <- lda(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.num[-21]) 
+```
+
+```{r}
+All <- metrices(lda_pred(model.0, test.num[-21], 0.5), test.num[-21]$Class)
+Albumin.Bilirubin <- metrices(lda_pred(model.1, test.num[-21], 0.5), test.num[-21]$Class)
+Albumin.AlkPhosphate <- metrices(lda_pred(model.2, test.num[-21], 0.5), test.num[-21]$Class)
+Albumin.Protime <- metrices(lda_pred(model.3, test.num[-21], 0.5), test.num[-21]$Class)
+Bilirubin.Protime <- metrices(lda_pred(model.4, test.num[-21], 0.5), test.num[-21]$Class)
+Important <- metrices(lda_pred(model.5, test.num[-21], 0.5), test.num[-21]$Class)
+
+lda_metrices <- data.frame(All, Important, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Protime, Bilirubin.Protime)
+lda_metrices <- round(lda_metrices,2)
+lda_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices)
+
+lda_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
 ```
