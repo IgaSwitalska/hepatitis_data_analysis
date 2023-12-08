@@ -24,6 +24,8 @@ library(tidyverse)
 library(flextable)
 library(imbalance)
 library(cowplot)
+
+library(ggpubr)
 ```
 
 # Introduction. Data description
@@ -41,7 +43,6 @@ First rows of our data frame.
 ```{r}
 df <- read.table("hepatitis.data", sep = ",")
 colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","LiverBig","LiverFirm","SpleenPalpable","Spiders","Ascites","Varices","Bilirubin","AlkPhosphate","Sgot","Albumin","Protime","Histology") # nolint
-# attach(df)
 ```
 
 ```{r}
@@ -80,12 +81,10 @@ sum(is.na(df))
 
 We can see that the majority of variables have missing values only in several attributes, but there exist objects with several non-missing characteristics. 
 
+In additional file we can also find md.pattern plot.
+
 ```{r}
 vis_dat(df)
-```
-
-```{r, echo=FALSE}
-# md.pattern(df)
 ```
 
 ## Add missing values 
@@ -165,7 +164,7 @@ ggplot(df_all, aes(x = Protime, color = method)) +
   facet_grid(Class ~ .)
 ```
 
-We can see, that the median method works badly for the attribute with lots of missing values (we have such a feature), so we can not use it. For the rest, results are similar, but we can also skip mice.single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn, bag tree, and mice. 
+We can see, that the median method works badly for the attribute with lots of missing values (we have such a feature), so we can not use it. For the rest, results are similar, but we can also skip mice.single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn(df1), bag tree(df2), and mice(df5). 
 
 ```{r echo=FALSE}
 df_all <- rbind(df, df1, df2, df5)
@@ -293,13 +292,22 @@ all_stats2 %>%
 
 ## Barplots
 
-```{r}
-plot_bar(na.omit(df_all), by = "method", by_position = "dodge")
-```
+Insights:
+
+  * We have imbalance problem in dependent variable;
+  
+  * We have imbalance problems in almost all features;
+  
+  * Also, there are several features where imbalance problems is not so large: Fatigue, Malaise, LiverFirm, Spiders;
+  
+  * We have several balanced attributes: Steroid, Histology.
+  
 
 ```{r}
-plot_bar(na.omit(df), by = "method", by_position = "dodge")
+df1[, categorical] <-  lapply(df1[, categorical], as.factor)
+plot_bar(df, by = "method", by_position = "dodge")
 ```
+
 Insights:
 
   * We have more men than women in the dataset. Moreover no women died. This may suggest that men are more likely to die from hepatitis.
@@ -311,25 +319,100 @@ Insights:
   * Histology and spiders might be important (?)
   
 ```{r}
-df1[, categorical] <-  lapply(df1[, categorical], as.factor)
-
-plot_bar(na.omit(df1[-21]), by = "Class", by_position = "dodge")
+# df1[, categorical] <-  lapply(df1[, categorical], as.factor)
+# 
+# plot_bar(na.omit(df1[-21]), by = "Class", by_position = "dodge")
 ```
+
+```{r}
+plot_bar(df[-21], by = "Class", by_position = "dodge")
+```
+
+In the addition file, we can see bar plots for different methods of imputing missing values. The results are very similar.
+
+## Histograms
+
+We have only 6 continuous attributes: Age, Bilirubin, AlkPhosphate, Sgot, Albumin, Protime.
+
+Insights:
+
+  * All have unimodal distribution;
+  
+  * Albumin, Protime have a left-skewed distribution and Age, AlkPhosphate, Bilirubin, Sgot have a right-skewed distribution;
+  
+  * The most common value for Age is about 40, Albumin - 4, AlkPhosphate - 75, Bilirubin - 0.7, Protime - 100, and Sgot - 0;
+  
+  * Age looks like Gamma distribution, Albumin - Beta, AlkPhosphate - Log Normal, Bilirubin - Log Normal, Protime - Beta, and Sgot - Exponential.
+
+```{r fig5, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+numeric_cols <- c("Bilirubin", "Albumin")
+plot_histogram(df, geom_histogram_args = list("fill" = "#f8766d"))
+```
+
+Insights:
+
+  * There is a big difference in distributions of different classes, because the number of values from class 1 is significantly less;
+  
+  * But, maybe, it will be difficult to separate objects from different classes, because they are overlapping. Only Albumin and Protime are a bit of difference. There are no values from class 1 with values of Albumin higher than 4.3 and a few values from class 1 with values of Protime higher than 50.
+
+```{r fig6, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(df, aes(x = Age, fill = Class)) +
+   geom_histogram(color='#f8766d', alpha=0.6, position='identity')
+
+p2 <- ggplot(df, aes(x = Albumin, fill = Class)) +
+   geom_histogram(color='#f8766d', alpha=0.6, position='identity')
+
+p3 <- ggplot(df, aes(x = AlkPhosphate, fill = Class)) +
+   geom_histogram(color='#f8766d', alpha=0.6, position='identity')
+
+p4 <- ggplot(df, aes(x = Bilirubin, fill = Class)) +
+   geom_histogram(color='#f8766d', alpha=0.6, position='identity')
+
+p5 <- ggplot(df, aes(x = Protime, fill = Class)) +
+   geom_histogram(color='#f8766d', alpha=0.6, position='identity')
+
+p6 <- ggplot(df, aes(x = Sgot, fill = Class)) +
+   geom_histogram(color='#f8766d', alpha=0.6, position='identity')
+
+ggarrange(p1, p2, p3, p4, p5, p6, ncol = 2, nrow = 3)
+```
+In the addition file, we can see density plots for different methods of imputing missing values. The results are very similar.
+
+## Q-Q plot
+
+We can see that q-q plot for Age, Albumin and Protime look no so bad, maybe this attributes have normal distribution. 
+
+```{r fig7, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+plot_qq(df)
+```
+
+In the addition file, we can see Q=Q plots for different methods of imputing missing values. The results are very similar.
 
 ## Boxplots
-Ability to separate objects from different classes: Protime, Albumin, Bilirubin.
-```{r}
-plot_boxplot(df1, by = "Class")
+
+Insights:
+
+  * There are no outliers for Age, 3 for Protime, and a lot for other features.
+  
+  * It's better to use Albumin, Bilirubin, and Protime to classify because they have larger differences. 
+
+```{r fig8, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+plot_boxplot(df, by = "Class")
 ```
 
+In the addition file, we can see box plots for different methods of imputing missing values. The results are very similar.
+
 ## Correlation
-We can observe two outliers (people with high Bilirubin)
 
-```{r fig1, fig.height = 10, fig.width = 10, fig.align = 'center'}
+To calculate correlation, we must use data without missing values, so we use data with imputing missing values using knn. In the addition file, we can see a correlation matrix for other methods of imputing missing values. The results are very similar.
 
+We have a low correlation for all pairs of attributes. 
+
+```{r fig1, fig.height = 6, fig.width = 6, fig.align = 'center'}
 cor_matrix <- cor(df1[, sapply(df1, is.numeric)], method = "pearson")
 corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 ```
+
 ```{r}
 # numeric_cols <- c("Age", "Bilirubin", "AlkPhosphate", "Sgot", "Albumin", "Protime")
 
@@ -341,32 +424,6 @@ p4 <- ggplot(df1, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3)
 plot_grid(p1, p2, p3, p4, labels = "AUTO")
 
 ```
-
-```{r echo=FALSE}
-# plot_histogram(df)
-# plot_bar(df)
-# plot_qq(df)
-# plot_boxplot(df, by = "Class")
-
-## Charts: continuous quantitative data
-# Typical questions:
-  # 
-  # - Uni- or multi-modal distribution?
-  # - Symmetric or left- / right-skewed distribution?
-  # - Mode / modal interval?
-  # - Does the distribution resemble a normal, uniform distribution?
-
-## Charts: discrete quantitative data
-# Typical questions:
-  #   
-  #   - The most frequent value?
-  #   - min / max?
-  #   - Frequencies of consecutive values?
-
-## Charts: qualitative data
-  # Analysis within groups: Why do customers leave?
-```
-
 
 # Clasification
 ```{r}
@@ -384,6 +441,7 @@ newMWMOTE <- mwmote(train.standarized, numInstances = n_new)
 newMWMOTE <- unstandarize(newMWMOTE)
 train.balanced <- rbind(train[-21], newMWMOTE)
 ```
+
 ```{r}
 plotComparison(train[-21], train.balanced, attrs = c("Bilirubin","Albumin", "Protime"))
 ```
@@ -399,6 +457,7 @@ to_numeric <- function(data) {
   return(data)
 }
 ```
+
 ```{r}
 train.balanced.num <- to_numeric(train.balanced)
 train.num <- to_numeric(train)
@@ -453,3 +512,87 @@ model.tr.0 <- lm(Class~., data=train.num[-21])
 pred.tr.0 <- predict(model.tr.0, test.num[-21]) 
 confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
 ```
+
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
+
+## K-nearest neighbors algorithm (K-NN)
+### Method
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
+## Linear discriminant analysis (LDA)
+### Method
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
+## Quadratic discriminant analysis (QDA)
+### Method
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
+## Logistic regression (LR)
+### Method
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
+## Random tree
+### Method
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
+## Random forest
+### Method
+### Confusion matrix
+### Cross-Validation (CV) 
+#### k-fold cross-validation
+#### leave-one-out
+### Bootstrap-based methods
+#### leave-one-out bootstrap,
+#### .632 estimator,
+#### .632+ estimator. 
+###	ROC-curve
+
