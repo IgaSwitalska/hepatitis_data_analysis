@@ -1,0 +1,207 @@
+---
+title: "report_addition_Switalska_Kohut.rmd"
+output: 
+  html_document:
+    number_sections: yes
+date: "2023-12-08"
+---
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(dplyr)
+library(caret)
+library(mice)
+library(DataExplorer)
+library(ggpubr)
+library(corrplot)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
+df <- read.table("hepatitis.data", sep = ",")
+colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","LiverBig","LiverFirm","SpleenPalpable","Spiders","Ascites","Varices","Bilirubin","AlkPhosphate","Sgot","Albumin","Protime","Histology")
+
+df[df == "?"] <- NA
+df <- mutate_all(df, function(x) as.numeric(as.character(x)))
+categorical <- c(1, 3:14, 20)
+df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
+df[, categorical] <-  lapply(df[, categorical], as.factor)
+
+df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
+data_transform <- preProcess(df.new, method = "knnImpute")
+data_transform2 <- preProcess(df.new, method = "bagImpute")
+df1 <- predict(data_transform, df.new)
+df2 <- predict(data_transform2, df.new)
+
+unstandarize <- function(data){
+  for (i in 1:20) {
+    column <- df.new[, i]
+    if (i %in% c(15, 18)) {
+      data[, i] <- data[, i] * sd(na.omit(column)) + mean(na.omit(column))
+    } else {
+      data[, i] <- round(data[, i] * sd(na.omit(column)) + mean(na.omit(column)))
+    }
+  }
+  return(data)
+}
+
+df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
+df1 <- unstandarize(df1)
+
+methods = c(" ", " ", " ", "logreg", " ", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "pmm", "pmm", "pmm", "pmm", "pmm", " ")
+imp_multi <- mice(df, method = methods)  # Impute missing values multiple times
+df5 <- complete(imp_multi, 1)
+
+df$method <-  c(rep("omit", nrow(df)))
+df1$method <- c(rep("knn", nrow(df1)))
+df2$method <- c(rep("bag tree", nrow(df2)))
+df5$method <- c(rep("mice", nrow(df5)))
+df_all <- rbind(df, df1, df2, df5)
+df_all$method <- as.factor(df_all$method)
+```
+
+# Introduction. Data description
+## Problem description 
+## Data characteristics
+
+# Preparing data
+## Data types
+## Missing values 
+## Add missing values 
+
+# EDA
+## Summary
+## Barplots
+
+We can see that bar plots for different methods are very similar. 
+
+```{r, warning=FALSE, message=FALSE}
+plot_bar(df_all, by = "method", by_position = "dodge")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df1[, categorical] <-  lapply(df1[, categorical], as.factor)
+plot_bar(df1[-21], by = "Class", by_position = "dodge")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df2[, categorical] <-  lapply(df2[, categorical], as.factor)
+plot_bar(df2[-21], by = "Class", by_position = "dodge")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df5[, categorical] <-  lapply(df5[, categorical], as.factor)
+plot_bar(df5[-21], by = "Class", by_position = "dodge")
+```
+
+## Histograms
+
+We can see that density plots for different methods are very similar. Only for Protime results are a bit different.
+
+```{r, warning=FALSE, message=FALSE}
+p7 <- ggplot(df_all, aes(x = Age, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p8 <- ggplot(df_all, aes(x = Albumin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p9 <- ggplot(df_all, aes(x = AlkPhosphate, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p10 <- ggplot(df_all, aes(x = Bilirubin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p11 <- ggplot(df_all, aes(x = Protime, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p12 <- ggplot(df_all, aes(x = Sgot, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+ggarrange(p7, p8, p9, p10, p11, p12, ncol = 2, nrow = 3)
+```
+
+```{r, warning=FALSE, message=FALSE}
+p13 <- ggplot(df_all, aes(x = Age, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p14 <- ggplot(df_all, aes(x = Albumin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p15 <- ggplot(df_all, aes(x = AlkPhosphate, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p16 <- ggplot(df_all, aes(x = Bilirubin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p17 <- ggplot(df_all, aes(x = Protime, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p18 <- ggplot(df_all, aes(x = Sgot, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+ggarrange(p13, p14, p15, p16, p17, p18, ncol = 2, nrow = 3)
+```
+
+## Q-Q plot
+
+We can see that Q-Q plots for different methods are very similar. Only for Protime results are a bit different.
+
+```{r warning=FALSE, message=FALSE}
+plot_qq(df_all, by = "method")
+```
+
+## Boxplots
+
+We can see that bar plots for different methods are very similar. 
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df_all, by = "method")
+```
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df1, by = "Class")
+```
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df2, by = "Class")
+```
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df5, by = "Class")
+```
+
+## Correlation
+ 
+We can see that correlation matrices for different methods are very similar. We also added a matrix for initial data with omitting objects with missing values.
+
+```{r, warning=FALSE, message=FALSE}
+df_omit <- na.omit(df)
+cor_matrix1 <- cor(df_omit[, sapply(df_omit, is.numeric)], method = "pearson")
+cor_matrix2 <- cor(df2[, sapply(df2, is.numeric)], method = "pearson")
+cor_matrix3 <- cor(df5[, sapply(df5, is.numeric)], method = "pearson")
+
+corrplot(cor_matrix1, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+corrplot(cor_matrix2, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+corrplot(cor_matrix3, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+```
+
+# Clasification
+## Solving class imbalance problem
+## Linear regression
+### Oversampling
+### Tresholding
