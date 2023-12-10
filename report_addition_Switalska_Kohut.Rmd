@@ -1,8 +1,7 @@
 ---
 title: "report_addition_Switalska_Kohut.rmd"
 output: 
-  html_document:
-    number_sections: yes
+  html_document
 date: "2023-12-08"
 ---
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
@@ -12,6 +11,8 @@ library(mice)
 library(DataExplorer)
 library(ggpubr)
 library(corrplot)
+library(rpart)
+library(rpart.plot)
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
@@ -57,18 +58,9 @@ df_all <- rbind(df, df1, df2, df5)
 df_all$method <- as.factor(df_all$method)
 ```
 
-# Introduction. Data description
-## Problem description 
-## Data characteristics
+# 3. EDA
 
-# Preparing data
-## Data types
-## Missing values 
-## Add missing values 
-
-# EDA
-## Summary
-## Barplots
+## 3.2. Barplots
 
 We can see that bar plots for different methods are very similar. 
 
@@ -91,7 +83,7 @@ df5[, categorical] <-  lapply(df5[, categorical], as.factor)
 plot_bar(df5[-21], by = "Class", by_position = "dodge")
 ```
 
-## Histograms
+## 3.3. Histograms
 
 We can see that density plots for different methods are very similar. Only for Protime results are a bit different.
 
@@ -157,7 +149,7 @@ p18 <- ggplot(df_all, aes(x = Sgot, color = method)) +
 ggarrange(p13, p14, p15, p16, p17, p18, ncol = 2, nrow = 3)
 ```
 
-## Q-Q plot
+## 3.4. Q-Q plot
 
 We can see that Q-Q plots for different methods are very similar. Only for Protime results are a bit different.
 
@@ -165,7 +157,7 @@ We can see that Q-Q plots for different methods are very similar. Only for Proti
 plot_qq(df_all, by = "method")
 ```
 
-## Boxplots
+## 3.5. Boxplots
 
 We can see that bar plots for different methods are very similar. 
 
@@ -185,7 +177,7 @@ plot_boxplot(df2, by = "Class")
 plot_boxplot(df5, by = "Class")
 ```
 
-## Correlation
+## 3.6. Correlation
  
 We can see that correlation matrices for different methods are very similar. We also added a matrix for initial data with omitting objects with missing values.
 
@@ -200,8 +192,159 @@ corrplot(cor_matrix2, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 corrplot(cor_matrix3, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 ```
 
-# Clasification
-## Solving class imbalance problem
-## Linear regression
-### Oversampling
-### Tresholding
+
+# 4. Classification
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
+set.seed(123) 
+inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
+
+train1 <- df1[inTrain,-21]
+test1 <- df1[-inTrain,-21]
+train2 <- df2[inTrain,-21]
+test2 <- df2[-inTrain,-21]
+train3 <- df5[inTrain,-21]
+test3 <- df5[-inTrain,-21]
+
+to_numeric1 <- function(data) {
+  data <- mutate_all(data, function(x) as.numeric(as.character(x)))
+  return(data)
+}
+
+n_new <- sum(train1$Class == 0) - sum(train1$Class == 1)
+train.num1 <- to_numeric1(train1)
+train.num2 <- to_numeric1(train2)
+train.num3 <- to_numeric1(train3)
+test.num1 <- to_numeric1(test1)
+test.num2 <- to_numeric1(test2)
+test.num3 <- to_numeric1(test3)
+
+newMWMOTE1 <- mwmote(train.num1, numInstances = n_new)
+train.balanced1 <- rbind(train.num1[-21], newMWMOTE1)
+newMWMOTE2 <- mwmote(train.num2, numInstances = n_new)
+train.balanced2 <- rbind(train.num2[-21], newMWMOTE2)
+newMWMOTE3 <- mwmote(train.num3, numInstances = n_new)
+train.balanced3 <- rbind(train.num3[-21], newMWMOTE3)
+```
+
+## 4.6. Logistic regression (LR)
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
+model.logit1 <-  glm(Class~.-Class, data=train.balanced1, family=binomial(link="logit"))
+model.logit2 <-  glm(Class~.-Class, data=train.balanced2, family=binomial(link="logit"))
+model.logit3 <-  glm(Class~.-Class, data=train.balanced3, family=binomial(link="logit"))
+
+model.logit4 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced1, family=binomial(link="logit"))
+model.logit5 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced2, family=binomial(link="logit"))
+model.logit6 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced3, family=binomial(link="logit"))
+
+model.logit7 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced1, family=binomial(link="logit"))
+model.logit8 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced2, family=binomial(link="logit"))
+model.logit9 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced3, family=binomial(link="logit"))
+```
+
+We can see that summary for different methods are similar. 
+
+```{r}
+summary(model.logit1)
+summary(model.logit2)
+summary(model.logit3)
+
+summary(model.logit4)
+summary(model.logit5)
+summary(model.logit6)
+
+summary(model.logit7)
+summary(model.logit8)
+summary(model.logit9)
+```
+
+## 4.7. Random tree
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+to_categorical <- function(data){
+  data[, categorical] <-  lapply(data[, categorical], as.factor)
+  return(data)
+}
+train1 <- to_categorical(train1)
+train2 <- to_categorical(train2)
+train3 <- to_categorical(train3)
+train0 <- df[inTrain,-21]
+test0 <- df[-inTrain,-21]
+train0 <- to_categorical(train0)
+test0 <- to_categorical(test0)
+
+set.seed(123) 
+
+full.tree1 <- rpart(mod1, data=train1, control=rpart.control(cp=-1, minsplit=5))
+full.tree2 <- rpart(mod1, data=train2, control=rpart.control(cp=-1, minsplit=5))
+full.tree3 <- rpart(mod1, data=train3, control=rpart.control(cp=-1, minsplit=5))
+full.tree4 <- rpart(mod1, data=train0, control=rpart.control(cp=-1, minsplit=5))
+full.tree5 <- rpart(mod2, data=train1, control=rpart.control(cp=-1, minsplit=5))
+full.tree6 <- rpart(mod2, data=train2, control=rpart.control(cp=-1, minsplit=5))
+full.tree7 <- rpart(mod2, data=train3, control=rpart.control(cp=-1, minsplit=5))
+full.tree8 <- rpart(mod2, data=train0, control=rpart.control(cp=-1, minsplit=5))
+```
+
+We can see that trees for different models and different datasets (for different imputation methods) are pretty different.
+
+```{r}
+rpart.plot(full.tree1)
+rpart.plot(full.tree2)
+rpart.plot(full.tree3)
+rpart.plot(full.tree4)
+rpart.plot(full.tree5)
+rpart.plot(full.tree6)
+rpart.plot(full.tree7)
+rpart.plot(full.tree8)
+```
+
+```{r, echo=FALSE}
+cp.opt1 <- 0.125
+cp.opt2 <- 0.165
+cp.opt3 <- 0.104
+cp.opt4 <- 0.291
+cp.opt5 <- 0.083
+cp.opt6 <- 0.125
+cp.opt7 <- 0.001
+cp.opt8 <- 0.062 
+
+full.tree1.pruned <- prune(full.tree1, cp = cp.opt1)
+full.tree2.pruned <- prune(full.tree2, cp = cp.opt2)
+full.tree3.pruned <- prune(full.tree3, cp = cp.opt3)
+full.tree4.pruned <- prune(full.tree4, cp = cp.opt4)
+full.tree5.pruned <- prune(full.tree5, cp = cp.opt5)
+full.tree6.pruned <- prune(full.tree6, cp = cp.opt6)
+full.tree7.pruned <- prune(full.tree7, cp = cp.opt7)
+full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
+```
+
+We can see basic information about all pruned trees. There are both similar and different trees.
+```{r}
+print(full.tree1.pruned)
+summary(full.tree1.pruned)
+
+print(full.tree2.pruned)
+summary(full.tree2.pruned)
+
+print(full.tree3.pruned)
+summary(full.tree3.pruned)
+
+print(full.tree4.pruned)
+summary(full.tree4.pruned)
+
+print(full.tree5.pruned)
+summary(full.tree5.pruned)
+
+print(full.tree6.pruned)
+summary(full.tree6.pruned)
+
+print(full.tree7.pruned)
+summary(full.tree7.pruned)
+
+print(full.tree8.pruned)
+summary(full.tree8.pruned)
+```

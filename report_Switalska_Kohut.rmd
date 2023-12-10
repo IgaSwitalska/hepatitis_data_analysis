@@ -24,9 +24,12 @@ library(tidyverse)
 library(flextable)
 library(imbalance)
 library(cowplot)
-
 library(ggpubr)
 library(MASS)
+
+library(mlbench)
+library(rpart)
+library(rpart.plot)
 ```
 
 # Introduction. Data description
@@ -49,6 +52,8 @@ colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise"
 ```{r}
 head(df)
 ```
+
+
 
 # Preparing data
 
@@ -82,17 +87,15 @@ sum(is.na(df))
 
 We can see that the majority of variables have missing values only in several attributes, but there exist objects with several non-missing characteristics. 
 
-In additional file we can also find md.pattern plot.
-
 ```{r}
 vis_dat(df)
 ```
 
 ## Add missing values 
 
-We used several methods to impute missing values: knnImpute, bagImpute, medianImpute, and function with different methods for different attributes (predictive mean matching for numeric data and logistic regression imputation for binary data where a factor is with 2 levels)
+We used several methods to impute missing values: knnImpute (df1), bagImpute (df2), medianImpute (df3), and function with different methods for different attributes (predictive mean matching for numeric data and logistic regression imputation for binary data where a factor is with 2 levels)
 
-We need all numerical valuesto use the first 3 methods.
+We need all numerical values to use the first 3 methods.
 
 ```{r}
 df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
@@ -165,7 +168,7 @@ ggplot(df_all, aes(x = Protime, color = method)) +
   facet_grid(Class ~ .)
 ```
 
-We can see, that the median method works badly for the attribute with lots of missing values (we have such a feature), so we can not use it. For the rest, results are similar, but we can also skip mice.single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn(df1), bag tree(df2), and mice(df5). 
+The median method works badly for the attribute with many missing values (we have such a feature). We can see that the distributions of both LiverFirm and Protime have changed a lot compared to the original. So we can not use it. For the rest, results are similar, but we can also skip mice single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn(df1), bag tree(df2), and mice(df5). 
 
 ```{r echo=FALSE}
 df_all <- rbind(df, df1, df2, df5)
@@ -175,7 +178,31 @@ df_all <- rbind(df, df1, df2, df3, df5)
 df_all$method <- as.factor(df_all$method)
 ```
 
+
+
 # EDA
+
+## Data visualization in 2D
+
+We visualize data in 2D using Principal component analysis (PCA).
+
+In a 2D plot, it's difficult to split our data into 2 classes, because they are overlapping, but maybe in more space, the situation is better.
+
+```{r echo=FALSE}
+to_numeric1 <- function(data) {
+  data <- mutate_all(data, function(x) as.numeric(as.character(x)))
+  return(data)
+}
+```
+
+```{r, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE}
+df1.num <- to_numeric1(df1)
+df1.num.pca <- prcomp(df1.num[,2:20], center=T, scale=T)
+pca <- data.frame(PC1 = df1.num.pca$x[,1], PC2 = df1.num.pca$x[,2], classes = as.factor(df1.num$Class))
+
+ggplot(data = pca, aes(x = PC1, y = PC2)) +
+    geom_point(aes(color = classes))
+```
 
 ## Summary
 Below we present basic statistics for continuous variables for various types of missing data substitutions. The statics are not significantly different. However, density functions must also be taken into account. They will tell us more about distribution.
@@ -297,9 +324,9 @@ Insights:
 
   * We have imbalance problem in dependent variable;
   
-  * We have imbalance problems in almost all features;
+  * We have imbalance classes in almost all features;
   
-  * Also, there are several features where imbalance problems is not so large: Fatigue, Malaise, LiverFirm, Spiders;
+  * Also, there are several features where imbalance is not so large: Fatigue, Malaise, LiverFirm, Spiders;
   
   * We have several balanced attributes: Steroid, Histology.
   
@@ -329,7 +356,7 @@ Insights:
 plot_bar(df[-21], by = "Class", by_position = "dodge")
 ```
 
-In the addition file, we can see bar plots for different methods of imputing missing values. The results are very similar.
+In the additional file, we can see bar plots for different methods of imputing missing values. The results are very similar.
 
 ## Histograms
 
@@ -339,14 +366,13 @@ Insights:
 
   * All have unimodal distribution;
   
-  * Albumin, Protime have a left-skewed distribution and Age, AlkPhosphate, Bilirubin, Sgot have a right-skewed distribution;
+  * Albumin has a left-skewed distribution and AlkPhosphate, Bilirubin, Sgot have a right-skewed distribution. Also, Age and Protime have an almost symmetric distribution;
   
   * The most common value for Age is about 40, Albumin - 4, AlkPhosphate - 75, Bilirubin - 0.7, Protime - 100, and Sgot - 0;
   
   * Age looks like Gamma distribution, Albumin - Beta, AlkPhosphate - Log Normal, Bilirubin - Log Normal, Protime - Beta, and Sgot - Exponential.
 
-```{r fig5, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
-numeric_cols <- c("Bilirubin", "Albumin")
+```{r, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
 plot_histogram(df, geom_histogram_args = list("fill" = "#f8766d"))
 ```
 
@@ -356,7 +382,7 @@ Insights:
   
   * But, maybe, it will be difficult to separate objects from different classes, because they are overlapping. Only Albumin and Protime are a bit of difference. There are no values from class 1 with values of Albumin higher than 4.3 and a few values from class 1 with values of Protime higher than 50.
 
-```{r fig6, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
 p1 <- ggplot(df, aes(x = Age, fill = Class)) +
    geom_histogram(color='#f8766d', alpha=0.6, position='identity')
 
@@ -377,17 +403,17 @@ p6 <- ggplot(df, aes(x = Sgot, fill = Class)) +
 
 ggarrange(p1, p2, p3, p4, p5, p6, ncol = 2, nrow = 3)
 ```
-In the addition file, we can see density plots for different methods of imputing missing values. The results are very similar.
+In the additional file, we can see density plots for different methods of imputing missing values. The results are very similar.
 
 ## Q-Q plot
 
 We can see that q-q plot for Age, Albumin and Protime look no so bad, maybe this attributes have normal distribution. 
 
-```{r fig7, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
 plot_qq(df)
 ```
 
-In the addition file, we can see Q=Q plots for different methods of imputing missing values. The results are very similar.
+In the additional file, we can see Q=Q plots for different methods of imputing missing values. The results are very similar.
 
 ## Boxplots
 
@@ -397,17 +423,17 @@ Insights:
   
   * It's better to use Albumin, Bilirubin, and Protime to classify because they have larger differences. 
 
-```{r fig8, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
 plot_boxplot(df, by = "Class")
 ```
 
-In the addition file, we can see box plots for different methods of imputing missing values. The results are very similar.
+In the additional file, we can see box plots for different methods of imputing missing values. The results are very similar.
 
 ## Correlation
 
-To calculate correlation, we must use data without missing values, so we use data with imputing missing values using knn. In the addition file, we can see a correlation matrix for other methods of imputing missing values. The results are very similar.
+To calculate correlation, we must use data without missing values, so we use data with imputing missing values using knn. In the additional file, we can see a correlation matrix for other methods of imputing missing values. The results are very similar.
 
-We have a low correlation for all pairs of attributes. 
+We have a low correlation for all pairs of attributes (<0.41). 
 
 ```{r fig1, fig.height = 6, fig.width = 6, fig.align = 'center'}
 cor_matrix <- cor(df1[, sapply(df1, is.numeric)], method = "pearson")
@@ -426,7 +452,26 @@ plot_grid(p1, p2, p3, p4, labels = "AUTO")
 
 ```
 
-# Clasification
+## Conclusions
+
+* We need to impute missing values, and use for it 3 different methods;
+
+* Results in EDA for all imputing data are similar;
+
+* We have imbalance problem;
+
+* Most of categorical attributes also have imbalanced classes;
+
+* We have low correlation for all pair of features (< 0.41);
+
+* Next fields seems to be important: Antivirals, Fatigue, LiverBig, Histology, Albumin,  Bilirubin, and Protime;
+
+* Next variables seems useless: Steroid, Age, AlkPhosphate, and Sgot.
+
+
+
+# Classification
+
 ```{r}
 set.seed(123) 
 inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
@@ -434,6 +479,31 @@ train <- df1[inTrain,]
 train.standarized <- df1.standarized[inTrain,]
 test <- df1[-inTrain,]
 ```
+
+
+
+
+
+We have the same values in variable Class in datasets for all imputing methods, so we can use the same inTrain.
+
+```{r}
+set.seed(123) 
+inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
+
+train1 <- df1[inTrain,-21]
+test1 <- df1[-inTrain,-21]
+
+train2 <- df2[inTrain,-21]
+test2 <- df2[-inTrain,-21]
+
+train3 <- df5[inTrain,-21]
+test3 <- df5[-inTrain,-21]
+```
+
+
+
+
+
 ## Solving class imbalance problem
 ```{r}
 # oversampling
@@ -445,8 +515,47 @@ train.balanced <- rbind(train[-21], newMWMOTE)
 ```
 
 ```{r}
+prop.table(table(train$Class))
+prop.table(table(test$Class))
+prop.table(table(train.balanced$Class))
+```
+
+```{r}
 plotComparison(train[-21], train.balanced, attrs = c("Bilirubin","Albumin", "Protime"))
 ```
+
+
+
+
+
+We have the same values in variable Class in datasets for all imputing methods, so we can use the same n_new.
+
+```{r}
+# oversampling
+n_new <- sum(train1$Class == 0) - sum(train1$Class == 1)
+
+train.num1 <- to_numeric1(train1)
+train.num2 <- to_numeric1(train2)
+train.num3 <- to_numeric1(train3)
+
+test.num1 <- to_numeric1(test1)
+test.num2 <- to_numeric1(test2)
+test.num3 <- to_numeric1(test3)
+
+newMWMOTE1 <- mwmote(train.num1, numInstances = n_new)
+train.balanced1 <- rbind(train.num1[-21], newMWMOTE1)
+
+newMWMOTE2 <- mwmote(train.num2, numInstances = n_new)
+train.balanced2 <- rbind(train.num2[-21], newMWMOTE2)
+
+newMWMOTE3 <- mwmote(train.num3, numInstances = n_new)
+train.balanced3 <- rbind(train.num3[-21], newMWMOTE3)
+```
+
+
+
+
+
 
 ## Linear regression
 
@@ -471,6 +580,7 @@ model.0 <- lm(Class~., data=train.balanced.num)
 summary(model.0)
 ```
 Models of two variables based on boxplots.
+
 ```{r echo=FALSE}
 slope <- function(model){
   -model$coefficients[2]/model$coefficients[3]
@@ -499,6 +609,7 @@ metrices <- function(pred, real){
   return(c(a,r,p,f))
 }
 ```
+
 ```{r}
 # two variables
 model.1 <- lm(Class~Albumin+Bilirubin, data=train.balanced.num) 
@@ -544,96 +655,18 @@ pred.tr.0 <- predict(model.tr.0, test.num[-21])
 confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
 ```
 
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
 
 
-## K-nearest neighbors algorithm (K-NN)
-### Method
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
-
-## Linear discriminant analysis (LDA)
-### Method
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
-
-## Quadratic discriminant analysis (QDA)
-### Method
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
-
-## Logistic regression (LR)
-### Method
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
-
-## Random tree
-### Method
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
-
-## Random forest
-### Method
-### Confusion matrix
-### Cross-Validation (CV) 
-#### k-fold cross-validation
-#### leave-one-out
-### Bootstrap-based methods
-#### leave-one-out bootstrap,
-#### .632 estimator,
-#### .632+ estimator. 
-###	ROC-curve
-
+```{r}
 # model.tr.0 <- lm(Class~., data=train.num[-21]) 
 # pred.tr.0 <- predict(model.tr.0, test.num[-21]) 
 # metrices(lr_pred(model.tr.0, test.num[-21], 0.1), test.num$Class)
 # confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
 ```
 
-## LDA 
+## K-nearest neighbors algorithm (K-NN)
+
+## Linear discriminant analysis (LDA)
 
 
 ```{r}
@@ -664,3 +697,454 @@ lda_metrices %>%
     theme_box() %>% 
     autofit()
 ```
+
+
+## Quadratic discriminant analysis (QDA)
+
+## Logistic regression (LR)
+
+We need numeric data. In the beginning we use all attributes for different imputing methods.
+
+```{r, warning=FALSE, message=FALSE}
+model.logit1 <-  glm(Class~.-Class, data=train.balanced1, family=binomial(link="logit"))
+model.logit2 <-  glm(Class~.-Class, data=train.balanced2, family=binomial(link="logit"))
+model.logit3 <-  glm(Class~.-Class, data=train.balanced3, family=binomial(link="logit"))
+```
+
+Now, we build the logistic regression model without variables that are unnecessary from the summary and useless from EDA.
+
+```{r, warning=FALSE, message=FALSE}
+model.logit4 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced1, family=binomial(link="logit"))
+model.logit5 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced2, family=binomial(link="logit"))
+model.logit6 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced3, family=binomial(link="logit"))
+
+model.logit7 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced1, family=binomial(link="logit"))
+model.logit8 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced2, family=binomial(link="logit"))
+model.logit9 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced3, family=binomial(link="logit"))
+```
+
+In the additional file, we can see summaries for all logistic regression models. There is a difference between statistics, but not so big.
+
+Now, let's predict the posterior probability i.e. Pr(0|x). Plot results where color - class.
+Since we have the same splits, we can use the same n, p, colors.
+
+There are false predictions in all models, but not so many.
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+pred.prob1 <- predict(model.logit1, test.num1, type = "response")
+pred.prob2 <- predict(model.logit2, test.num2, type = "response")
+pred.prob3 <- predict(model.logit3, test.num3, type = "response")
+
+pred.prob4 <- predict(model.logit4, test.num1, type = "response")
+pred.prob5 <- predict(model.logit5, test.num2, type = "response")
+pred.prob6 <- predict(model.logit6, test.num3, type = "response")
+
+pred.prob7 <- predict(model.logit7, test.num1, type = "response")
+pred.prob8 <- predict(model.logit8, test.num2, type = "response")
+pred.prob9 <- predict(model.logit9, test.num3, type = "response")
+
+n <- nrow(test.num1)
+classes <- as.factor(test.num1$Class)
+
+pred.prob.plot1 <- data.frame(x = 1:n, y = pred.prob1, classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, y = pred.prob2, classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, y = pred.prob3, classes = classes)
+
+pred.prob.plot4 <- data.frame(x = 1:n, y = pred.prob4, classes = classes)
+pred.prob.plot5 <- data.frame(x = 1:n, y = pred.prob5, classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, y = pred.prob6, classes = classes)
+
+pred.prob.plot7 <- data.frame(x = 1:n, y = pred.prob7, classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, y = pred.prob8, classes = classes)
+pred.prob.plot9 <- data.frame(x = 1:n, y = pred.prob9, classes = classes)
+
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p9 <- ggplot(data = pred.prob.plot9, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, ncol = 3, nrow = 3)
+```
+
+Let's also plot histograms of predicted probabilities.
+
+Most probabilities for all models are about 0 or 1, what we need.
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(pred.prob.plot1, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p2 <- ggplot(pred.prob.plot2, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p3 <- ggplot(pred.prob.plot3, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p4 <- ggplot(pred.prob.plot4, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p5 <- ggplot(pred.prob.plot5, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p6 <- ggplot(pred.prob.plot6, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p7 <- ggplot(pred.prob.plot7, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p8 <- ggplot(pred.prob.plot8, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p9 <- ggplot(pred.prob.plot9, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, ncol = 3, nrow = 3)
+```
+
+Now, let's convert probabilities to class labels for a given cutoff
+
+```{r, echo=FALSE}
+prob.to.labels <- function(probs, cutoff){
+  classes <- rep("0",length(probs))
+  classes[probs>cutoff] <- "1"
+  return(as.factor(classes))
+}
+```
+
+```{r}
+pred.labels1 <- prob.to.labels(probs=pred.prob1, cutoff=0.5)
+pred.labels2 <- prob.to.labels(probs=pred.prob2, cutoff=0.5)
+pred.labels3 <- prob.to.labels(probs=pred.prob3, cutoff=0.5)
+
+pred.labels4 <- prob.to.labels(probs=pred.prob4, cutoff=0.5)
+pred.labels5 <- prob.to.labels(probs=pred.prob5, cutoff=0.5)
+pred.labels6 <- prob.to.labels(probs=pred.prob6, cutoff=0.5)
+
+pred.labels7 <- prob.to.labels(probs=pred.prob7, cutoff=0.5)
+pred.labels8 <- prob.to.labels(probs=pred.prob8, cutoff=0.5)
+pred.labels9 <- prob.to.labels(probs=pred.prob9, cutoff=0.5)
+
+real.labels <- test.num1$Class
+```
+
+
+```{r}
+logit1 <- metrices(pred.labels1, real.labels)
+logit2 <- metrices(pred.labels2, real.labels)
+logit3 <- metrices(pred.labels3, real.labels)
+
+logit4 <- metrices(pred.labels4, real.labels)
+logit5 <- metrices(pred.labels5, real.labels)
+logit6 <- metrices(pred.labels6, real.labels)
+
+logit7 <- metrices(pred.labels7, real.labels)
+logit8 <- metrices(pred.labels8, real.labels)
+logit9 <- metrices(pred.labels9, real.labels)
+
+logit_metrices <- data.frame(logit1, logit2, logit3, logit4, logit5, logit6, logit7, logit8, logit9)
+logit_metrices <- round(logit_metrices,2)
+logit_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), logit_metrices)
+
+logit_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+
+## Random tree
+
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
+
+```{r}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+```
+
+Building full trees for different models and different datasets (for different imputation methods and initial with missing values).
+
+```{r, echo=FALSE}
+to_categorical <- function(data){
+  data[, categorical] <-  lapply(data[, categorical], as.factor)
+  return(data)
+}
+
+train1 <- to_categorical(train1)
+train2 <- to_categorical(train2)
+train3 <- to_categorical(train3)
+
+test1 <- to_categorical(test1)
+test2 <- to_categorical(test2)
+test3 <- to_categorical(test3)
+
+train0 <- df[inTrain,-21]
+test0 <- df[-inTrain,-21]
+train0 <- to_categorical(train0)
+test0 <- to_categorical(test0)
+```
+
+```{r}
+set.seed(123) 
+
+full.tree1 <- rpart(mod1, data=train1, control=rpart.control(cp=-1, minsplit=5))
+full.tree2 <- rpart(mod1, data=train2, control=rpart.control(cp=-1, minsplit=5))
+full.tree3 <- rpart(mod1, data=train3, control=rpart.control(cp=-1, minsplit=5))
+full.tree4 <- rpart(mod1, data=train0, control=rpart.control(cp=-1, minsplit=5))
+
+full.tree5 <- rpart(mod2, data=train1, control=rpart.control(cp=-1, minsplit=5))
+full.tree6 <- rpart(mod2, data=train2, control=rpart.control(cp=-1, minsplit=5))
+full.tree7 <- rpart(mod2, data=train3, control=rpart.control(cp=-1, minsplit=5))
+full.tree8 <- rpart(mod2, data=train0, control=rpart.control(cp=-1, minsplit=5))
+```
+
+In the additional file, we can see a visualization of all full trees. They are pretty different. 
+
+Now, we need to choose a complexity parameter (cp).
+```{r}
+plotcp(full.tree1)
+printcp(full.tree1)
+
+plotcp(full.tree2)
+printcp(full.tree2)
+
+plotcp(full.tree3)
+printcp(full.tree3)
+
+plotcp(full.tree4)
+printcp(full.tree4)
+
+plotcp(full.tree5)
+printcp(full.tree5)
+
+plotcp(full.tree6)
+printcp(full.tree6)
+
+plotcp(full.tree7)
+printcp(full.tree7)
+
+plotcp(full.tree8)
+printcp(full.tree8)
+```
+
+We will use 1SE (one standard error) rule: As the optimal tree, we choose the tree with the smallest number of splits (i.e. the smallest size) for which a misclassification error is within one standard error from the minimum misclassification error. We did not choose cp if there was only 1 split. 
+
+```{r}
+cp.opt1 <- 0.125
+cp.opt2 <- 0.083
+cp.opt3 <- 0.083
+cp.opt4 <- 0.041
+cp.opt5 <- 0.083
+cp.opt6 <- 0.083
+cp.opt7 <- 0.166
+cp.opt8 <- 0.062    
+```
+
+Now, we prune trees.
+
+```{r}
+full.tree1.pruned <- prune(full.tree1, cp = cp.opt1)
+full.tree2.pruned <- prune(full.tree2, cp = cp.opt2)
+full.tree3.pruned <- prune(full.tree3, cp = cp.opt3)
+full.tree4.pruned <- prune(full.tree4, cp = cp.opt4)
+full.tree5.pruned <- prune(full.tree5, cp = cp.opt5)
+full.tree6.pruned <- prune(full.tree6, cp = cp.opt6)
+full.tree7.pruned <- prune(full.tree7, cp = cp.opt7)
+full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
+```
+
+In the additional file, we can find basic information about the trees. 
+
+Now, let's visualize all the trees. They are pretty different.
+
+```{r}
+rpart.plot(full.tree1.pruned)
+rpart.plot(full.tree2.pruned)
+rpart.plot(full.tree3.pruned)
+rpart.plot(full.tree4.pruned)
+rpart.plot(full.tree5.pruned)
+rpart.plot(full.tree6.pruned)
+rpart.plot(full.tree7.pruned)
+rpart.plot(full.tree8.pruned)
+```
+
+Predicted  posterior probabilities. Plot results where color - class.
+Since we have the same splits, we can use the same n, p, colors.
+
+There are false predictions in all models, not so few.
+
+```{r}
+pred.probs1 <- predict(full.tree1.pruned, newdata=test1, type = "prob")
+pred.probs2 <- predict(full.tree2.pruned, newdata=test2, type = "prob")
+pred.probs3 <- predict(full.tree3.pruned, newdata=test3, type = "prob")
+pred.probs4 <- predict(full.tree4.pruned, newdata=test0, type = "prob")
+
+pred.probs5 <- predict(full.tree5.pruned, newdata=test1, type = "prob")
+pred.probs6 <- predict(full.tree6.pruned, newdata=test2, type = "prob")
+pred.probs7 <- predict(full.tree7.pruned, newdata=test3, type = "prob")
+pred.probs8 <- predict(full.tree8.pruned, newdata=test0, type = "prob")
+
+n <- nrow(test1)
+classes <- as.factor(test1$Class)
+
+pred.prob.plot1 <- data.frame(x = 1:n, y = pred.probs1[,2], classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, y = pred.probs2[,2], classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, y = pred.probs3[,2], classes = classes)
+pred.prob.plot4 <- data.frame(x = 1:n, y = pred.probs4[,2], classes = classes)
+
+pred.prob.plot5 <- data.frame(x = 1:n, y = pred.probs5[,2], classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, y = pred.probs6[,2], classes = classes)
+pred.prob.plot7 <- data.frame(x = 1:n, y = pred.probs7[,2], classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, y = pred.probs8[,2], classes = classes)
+```
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = y)) +
+    geom_point(aes(color = classes))
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
+```
+
+Let's also plot histograms of predicted probabilities.
+
+Most probabilities for all models are about 0 or 1, what we need, but from previous plots, we can see, that not all values are correct. 
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(pred.prob.plot1, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p2 <- ggplot(pred.prob.plot2, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p3 <- ggplot(pred.prob.plot3, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p4 <- ggplot(pred.prob.plot4, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p5 <- ggplot(pred.prob.plot5, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p6 <- ggplot(pred.prob.plot6, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p7 <- ggplot(pred.prob.plot7, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p8 <- ggplot(pred.prob.plot8, aes(x = y)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
+```
+
+Predicted class labels.
+
+```{r}
+pred.labels1 <- predict(full.tree1.pruned, newdata=test1, type = "class")
+pred.labels2 <- predict(full.tree2.pruned, newdata=test2, type = "class")
+pred.labels3 <- predict(full.tree3.pruned, newdata=test3, type = "class")
+pred.labels4 <- predict(full.tree4.pruned, newdata=test0, type = "class")
+
+pred.labels5 <- predict(full.tree5.pruned, newdata=test1, type = "class")
+pred.labels6 <- predict(full.tree6.pruned, newdata=test2, type = "class")
+pred.labels7 <- predict(full.tree7.pruned, newdata=test3, type = "class")
+pred.labels8 <- predict(full.tree8.pruned, newdata=test0, type = "class")
+
+real.labels <- test1$Class
+```
+
+
+```{r}
+tree1 <- metrices(pred.labels1, real.labels)
+tree2 <- metrices(pred.labels2, real.labels)
+tree3 <- metrices(pred.labels3, real.labels)
+tree4 <- metrices(pred.labels4, real.labels)
+
+tree5 <- metrices(pred.labels5, real.labels)
+tree6 <- metrices(pred.labels6, real.labels)
+tree7 <- metrices(pred.labels7, real.labels)
+tree8 <- metrices(pred.labels8, real.labels)
+
+tree_metrices <- data.frame(tree1, tree2, tree3, tree4, tree5, tree6, tree7, tree8)
+tree_metrices <- round(tree_metrices,2)
+tree_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), tree_metrices)
+
+tree_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+## Bagging
+
+```{r}
+btree <- bagging(Class~. -Class, data=train1, nbagg=25, minsplit=1, cp=0)
+btree
+```
+
+## Random forest
+
+```{r}
+# number of features
+p <-  ncol(Glass) - 1
+
+# different settings (ntree - number of trees, mtry - number of randomly selected features)
+rf.1 <- randomForest(Type~., data=Glass, ntree=1, mtry=p, importance=TRUE)
+rf.1
+rf.2 <- randomForest(Type~., data=Glass, ntree=100, mtry=sqrt(p), importance=TRUE)
+rf.2
+
+# predicted class labels
+pred.labels <- predict(rf.2, newdata=Glass, type="class")
+real.labels <- Glass$Type
+(confusion.matrix <- table(pred.labels, real.labels)) # for training set
+
+# predicted probabilities
+pred.probs <- predict(rf.2, newdata=Glass, type="prob")
+
+# confusion matrix  based on OOB (Out-Of-Bag) samples, i.e. observations that were not selected in a given replication
+rf.2$confusion
+
+# Classification error plot
+plot(rf.2)
+
+# Variable importance ranking
+varImpPlot(rf.2,main = "Variable Importance Plot")
+```
+
+
+### Comparison of accuracy (10-fold Cross-Validation scheme)
+######################################################################
+
+mypredict.rpart <- function(object, newdata)  predict(object, newdata=newdata, type="class")
+
+(error.tree         <- (errorest(Type~., data=Glass, model=rpart, predict=mypredict.rpart)))
+(error.bagging      <- (errorest(Type~., data=Glass, model=bagging)))
+(error.randomForest <- (errorest(Type~., data=Glass, model=randomForest)))
+
+<!-- ### Method -->
+<!-- ### Confusion matrix -->
+<!-- ### Cross-Validation (CV)  -->
+<!-- #### k-fold cross-validation -->
+<!-- #### leave-one-out -->
+<!-- ### Bootstrap-based methods -->
+<!-- #### leave-one-out bootstrap, -->
+<!-- #### .632 estimator, -->
+<!-- #### .632+ estimator.  -->
+<!-- ###	ROC-curve -->
