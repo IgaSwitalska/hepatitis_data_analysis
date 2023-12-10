@@ -29,6 +29,8 @@ categorical <- c(1, 3:14, 20)
 df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
 df[, categorical] <-  lapply(df[, categorical], as.factor)
 
+set.seed(123)
+
 df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
 data_transform <- preProcess(df.new, method = "knnImpute")
 data_transform2 <- preProcess(df.new, method = "bagImpute")
@@ -263,6 +265,51 @@ summary(model.logit8)
 summary(model.logit9)
 ```
 
+```{r, echo=FALSE}
+pred.prob1 <- predict(model.logit1, test.num1, type = "response")
+pred.prob2 <- predict(model.logit2, test.num2, type = "response")
+pred.prob3 <- predict(model.logit3, test.num3, type = "response")
+pred.prob4 <- predict(model.logit4, test.num1, type = "response")
+pred.prob5 <- predict(model.logit5, test.num2, type = "response")
+pred.prob6 <- predict(model.logit6, test.num3, type = "response")
+pred.prob7 <- predict(model.logit7, test.num1, type = "response")
+pred.prob8 <- predict(model.logit8, test.num2, type = "response")
+pred.prob9 <- predict(model.logit9, test.num3, type = "response")
+
+prob.to.labels <- function(probs, cutoff){
+  classes <- rep("0",length(probs))
+  classes[probs>cutoff] <- "1"
+  return(as.factor(classes))
+}
+
+pred.labels1 <- prob.to.labels(probs=pred.prob1, cutoff=0.5)
+pred.labels2 <- prob.to.labels(probs=pred.prob2, cutoff=0.5)
+pred.labels3 <- prob.to.labels(probs=pred.prob3, cutoff=0.5)
+pred.labels4 <- prob.to.labels(probs=pred.prob4, cutoff=0.5)
+pred.labels5 <- prob.to.labels(probs=pred.prob5, cutoff=0.5)
+pred.labels6 <- prob.to.labels(probs=pred.prob6, cutoff=0.5)
+pred.labels7 <- prob.to.labels(probs=pred.prob7, cutoff=0.5)
+pred.labels8 <- prob.to.labels(probs=pred.prob8, cutoff=0.5)
+pred.labels9 <- prob.to.labels(probs=pred.prob9, cutoff=0.5)
+
+real.labels <- test.num1$Class
+```
+
+We can see confusion matrices for all models. The results are pretty similar.
+
+```{r}
+confusionMatrix(table(pred.labels1, real.labels), positive = "1")
+confusionMatrix(table(pred.labels2, real.labels), positive = "1")
+confusionMatrix(table(pred.labels3, real.labels), positive = "1")
+
+confusionMatrix(table(pred.labels4, real.labels), positive = "1")
+confusionMatrix(table(pred.labels5, real.labels), positive = "1")
+confusionMatrix(table(pred.labels6, real.labels), positive = "1")
+
+confusionMatrix(table(pred.labels7, real.labels), positive = "1")
+confusionMatrix(table(pred.labels8, real.labels), positive = "1")
+confusionMatrix(table(pred.labels9, real.labels), positive = "1")
+```
 ## 4.7. Random tree
 
 ```{r, echo=FALSE}
