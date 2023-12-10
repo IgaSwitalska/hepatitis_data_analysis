@@ -30,6 +30,9 @@ library(MASS)
 library(mlbench)
 library(rpart)
 library(rpart.plot)
+library(randomForest)
+library(ipred)
+library(ada)
 ```
 
 # Introduction. Data description
@@ -514,6 +517,8 @@ newMWMOTE <- unstandarize(newMWMOTE)
 train.balanced <- rbind(train[-21], newMWMOTE)
 ```
 
+Let's check the proportion of the classes in train and test sets. We can see that they are similar. In a balanced set, classes are divided equally.
+
 ```{r}
 prop.table(table(train$Class))
 prop.table(table(test$Class))
@@ -730,7 +735,7 @@ Since we have the same splits, we can use the same n, p, colors.
 
 There are false predictions in all models, but not so many.
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r}
 pred.prob1 <- predict(model.logit1, test.num1, type = "response")
 pred.prob2 <- predict(model.logit2, test.num2, type = "response")
 pred.prob3 <- predict(model.logit3, test.num3, type = "response")
@@ -742,41 +747,45 @@ pred.prob6 <- predict(model.logit6, test.num3, type = "response")
 pred.prob7 <- predict(model.logit7, test.num1, type = "response")
 pred.prob8 <- predict(model.logit8, test.num2, type = "response")
 pred.prob9 <- predict(model.logit9, test.num3, type = "response")
+```
 
+```{r, echo=FALSE}
 n <- nrow(test.num1)
 classes <- as.factor(test.num1$Class)
 
-pred.prob.plot1 <- data.frame(x = 1:n, y = pred.prob1, classes = classes)
-pred.prob.plot2 <- data.frame(x = 1:n, y = pred.prob2, classes = classes)
-pred.prob.plot3 <- data.frame(x = 1:n, y = pred.prob3, classes = classes)
+pred.prob.plot1 <- data.frame(x = 1:n, probability = pred.prob1, classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, probability = pred.prob2, classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, probability = pred.prob3, classes = classes)
 
-pred.prob.plot4 <- data.frame(x = 1:n, y = pred.prob4, classes = classes)
-pred.prob.plot5 <- data.frame(x = 1:n, y = pred.prob5, classes = classes)
-pred.prob.plot6 <- data.frame(x = 1:n, y = pred.prob6, classes = classes)
+pred.prob.plot4 <- data.frame(x = 1:n, probability = pred.prob4, classes = classes)
+pred.prob.plot5 <- data.frame(x = 1:n, probability = pred.prob5, classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, probability = pred.prob6, classes = classes)
 
-pred.prob.plot7 <- data.frame(x = 1:n, y = pred.prob7, classes = classes)
-pred.prob.plot8 <- data.frame(x = 1:n, y = pred.prob8, classes = classes)
-pred.prob.plot9 <- data.frame(x = 1:n, y = pred.prob9, classes = classes)
+pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.prob7, classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.prob8, classes = classes)
+pred.prob.plot9 <- data.frame(x = 1:n, probability = pred.prob9, classes = classes)
+```
 
-p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = y)) +
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = y)) +
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = y)) +
-    geom_point(aes(color = classes))
-
-p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = y)) +
-    geom_point(aes(color = classes))
-p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = y)) +
-    geom_point(aes(color = classes))
-p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = y)) +
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 
-p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = y)) +
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = y)) +
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p9 <- ggplot(data = pred.prob.plot9, aes(x = x, y = y)) +
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p9 <- ggplot(data = pred.prob.plot9, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, ncol = 3, nrow = 3)
@@ -787,25 +796,25 @@ Let's also plot histograms of predicted probabilities.
 Most probabilities for all models are about 0 or 1, what we need.
 
 ```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
-p1 <- ggplot(pred.prob.plot1, aes(x = y)) +
+p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p2 <- ggplot(pred.prob.plot2, aes(x = y)) +
+p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p3 <- ggplot(pred.prob.plot3, aes(x = y)) +
-   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-
-p4 <- ggplot(pred.prob.plot4, aes(x = y)) +
-   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p5 <- ggplot(pred.prob.plot5, aes(x = y)) +
-   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p6 <- ggplot(pred.prob.plot6, aes(x = y)) +
+p3 <- ggplot(pred.prob.plot3, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 
-p7 <- ggplot(pred.prob.plot7, aes(x = y)) +
+p4 <- ggplot(pred.prob.plot4, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p8 <- ggplot(pred.prob.plot8, aes(x = y)) +
+p5 <- ggplot(pred.prob.plot5, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p9 <- ggplot(pred.prob.plot9, aes(x = y)) +
+p6 <- ggplot(pred.prob.plot6, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p7 <- ggplot(pred.prob.plot7, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p9 <- ggplot(pred.prob.plot9, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, ncol = 3, nrow = 3)
@@ -908,34 +917,9 @@ full.tree8 <- rpart(mod2, data=train0, control=rpart.control(cp=-1, minsplit=5))
 
 In the additional file, we can see a visualization of all full trees. They are pretty different. 
 
-Now, we need to choose a complexity parameter (cp).
-```{r}
-plotcp(full.tree1)
-printcp(full.tree1)
+Now, we need to choose a complexity parameter (cp). In the additional file, we can see plots and information about misclassification error.
 
-plotcp(full.tree2)
-printcp(full.tree2)
-
-plotcp(full.tree3)
-printcp(full.tree3)
-
-plotcp(full.tree4)
-printcp(full.tree4)
-
-plotcp(full.tree5)
-printcp(full.tree5)
-
-plotcp(full.tree6)
-printcp(full.tree6)
-
-plotcp(full.tree7)
-printcp(full.tree7)
-
-plotcp(full.tree8)
-printcp(full.tree8)
-```
-
-We will use 1SE (one standard error) rule: As the optimal tree, we choose the tree with the smallest number of splits (i.e. the smallest size) for which a misclassification error is within one standard error from the minimum misclassification error. We did not choose cp if there was only 1 split. 
+We will use 1SE (one standard error) rule: As the optimal tree, we choose the tree with the smallest number of splits (i.e. the smallest size) for which a misclassification error is within one standard error from the minimum misclassification error.
 
 ```{r}
 cp.opt1 <- 0.125
@@ -963,7 +947,7 @@ full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
 
 In the additional file, we can find basic information about the trees. 
 
-Now, let's visualize all the trees. They are pretty different.
+Now, let's visualize all the trees. They are pretty different: from a tree with only 2 splits to a tree with many splits.
 
 ```{r}
 rpart.plot(full.tree1.pruned)
@@ -979,7 +963,7 @@ rpart.plot(full.tree8.pruned)
 Predicted  posterior probabilities. Plot results where color - class.
 Since we have the same splits, we can use the same n, p, colors.
 
-There are false predictions in all models, not so few.
+There are false predictions in all models, not so few, especially many false negative values.
 
 ```{r}
 pred.probs1 <- predict(full.tree1.pruned, newdata=test1, type = "prob")
@@ -991,38 +975,40 @@ pred.probs5 <- predict(full.tree5.pruned, newdata=test1, type = "prob")
 pred.probs6 <- predict(full.tree6.pruned, newdata=test2, type = "prob")
 pred.probs7 <- predict(full.tree7.pruned, newdata=test3, type = "prob")
 pred.probs8 <- predict(full.tree8.pruned, newdata=test0, type = "prob")
+```
 
+```{r, echo=FALSE}
 n <- nrow(test1)
 classes <- as.factor(test1$Class)
 
-pred.prob.plot1 <- data.frame(x = 1:n, y = pred.probs1[,2], classes = classes)
-pred.prob.plot2 <- data.frame(x = 1:n, y = pred.probs2[,2], classes = classes)
-pred.prob.plot3 <- data.frame(x = 1:n, y = pred.probs3[,2], classes = classes)
-pred.prob.plot4 <- data.frame(x = 1:n, y = pred.probs4[,2], classes = classes)
+pred.prob.plot1 <- data.frame(x = 1:n, probability = pred.probs1[,2], classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, probability = pred.probs2[,2], classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, probability = pred.probs3[,2], classes = classes)
+pred.prob.plot4 <- data.frame(x = 1:n, probability = pred.probs4[,2], classes = classes)
 
-pred.prob.plot5 <- data.frame(x = 1:n, y = pred.probs5[,2], classes = classes)
-pred.prob.plot6 <- data.frame(x = 1:n, y = pred.probs6[,2], classes = classes)
-pred.prob.plot7 <- data.frame(x = 1:n, y = pred.probs7[,2], classes = classes)
-pred.prob.plot8 <- data.frame(x = 1:n, y = pred.probs8[,2], classes = classes)
+pred.prob.plot5 <- data.frame(x = 1:n, probability = pred.probs5[,2], classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, probability = pred.probs6[,2], classes = classes)
+pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
 ```
 
 ```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
-p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = y)) +
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = y)) +
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = y)) +
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = y)) +
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 
-p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = y)) +
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = y)) +
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = y)) +
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
-p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = y)) +
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
@@ -1030,25 +1016,25 @@ ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
 
 Let's also plot histograms of predicted probabilities.
 
-Most probabilities for all models are about 0 or 1, what we need, but from previous plots, we can see, that not all values are correct. 
+There are both good and bad results. There are histograms, where most probabilities are about 0 or 1, what we need. But there are also histograms, where a lot of values are located in the middle between 0 and 1.
 
 ```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
-p1 <- ggplot(pred.prob.plot1, aes(x = y)) +
+p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p2 <- ggplot(pred.prob.plot2, aes(x = y)) +
+p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p3 <- ggplot(pred.prob.plot3, aes(x = y)) +
+p3 <- ggplot(pred.prob.plot3, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p4 <- ggplot(pred.prob.plot4, aes(x = y)) +
+p4 <- ggplot(pred.prob.plot4, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 
-p5 <- ggplot(pred.prob.plot5, aes(x = y)) +
+p5 <- ggplot(pred.prob.plot5, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p6 <- ggplot(pred.prob.plot6, aes(x = y)) +
+p6 <- ggplot(pred.prob.plot6, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p7 <- ggplot(pred.prob.plot7, aes(x = y)) +
+p7 <- ggplot(pred.prob.plot7, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
-p8 <- ggplot(pred.prob.plot8, aes(x = y)) +
+p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
@@ -1091,52 +1077,511 @@ tree_metrices %>%
     theme_box() %>% 
     autofit()
 ```
-## Bagging
+## Bagging (bootstrap aggregating)
+
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
 
 ```{r}
-btree <- bagging(Class~. -Class, data=train1, nbagg=25, minsplit=1, cp=0)
-btree
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 ```
+
+Building random forest for different models and datasets (for different imputation methods and initial with missing values).
+
+```{r}
+set.seed(123) 
+
+btree1 <- bagging(mod1, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree2 <- bagging(mod1, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree3 <- bagging(mod1, data=train3, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree4 <- bagging(mod1, data=train0, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+
+btree5 <- bagging(mod2, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree6 <- bagging(mod2, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree7 <- bagging(mod2, data=train3, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree8 <- bagging(mod2, data=train0, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+```
+
+In the additional file, we can find basic information about the models.
+
+Predicted  posterior probabilities. Plot results where color - class.
+Since we have the same splits, we can use the same n, p, colors.
+
+The results are not so good, because there are false predictions in all models and many probabilities in the middle.
+
+```{r}
+pred.probs1 <- predict(btree1, newdata=test1, type = "prob")
+pred.probs2 <- predict(btree2, newdata=test2, type = "prob")
+pred.probs3 <- predict(btree3, newdata=test3, type = "prob")
+pred.probs4 <- predict(btree4, newdata=test0, type = "prob")
+
+pred.probs5 <- predict(btree5, newdata=test1, type = "prob")
+pred.probs6 <- predict(btree6, newdata=test2, type = "prob")
+pred.probs7 <- predict(btree7, newdata=test3, type = "prob")
+pred.probs8 <- predict(btree8, newdata=test0, type = "prob")
+```
+
+```{r, echo=FALSE}
+n <- nrow(test1)
+classes <- as.factor(test1$Class)
+
+pred.prob.plot1 <- data.frame(x = 1:n, probability = pred.probs1[,2], classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, probability = pred.probs2[,2], classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, probability = pred.probs3[,2], classes = classes)
+pred.prob.plot4 <- data.frame(x = 1:n, probability = pred.probs4[,2], classes = classes)
+
+pred.prob.plot5 <- data.frame(x = 1:n, probability = pred.probs5[,2], classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, probability = pred.probs6[,2], classes = classes)
+pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
+```
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
+```
+
+Let's also plot histograms of predicted probabilities.
+
+As we saw before, the results are not so good: many values are about 0, but also a lot of values are located in the middle between 0 and 1.
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p3 <- ggplot(pred.prob.plot3, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p4 <- ggplot(pred.prob.plot4, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p5 <- ggplot(pred.prob.plot5, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p6 <- ggplot(pred.prob.plot6, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p7 <- ggplot(pred.prob.plot7, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
+```
+
+Predicted class labels.
+
+```{r}
+pred.labels1 <- predict(btree1, newdata=test1, type = "class")
+pred.labels2 <- predict(btree2, newdata=test2, type = "class")
+pred.labels3 <- predict(btree3, newdata=test3, type = "class")
+pred.labels4 <- predict(btree4, newdata=test0, type = "class")
+
+pred.labels5 <- predict(btree5, newdata=test1, type = "class")
+pred.labels6 <- predict(btree6, newdata=test2, type = "class")
+pred.labels7 <- predict(btree7, newdata=test3, type = "class")
+pred.labels8 <- predict(btree8, newdata=test0, type = "class")
+
+real.labels <- test1$Class
+```
+
+
+```{r}
+btree1 <- metrices(pred.labels1, real.labels)
+btree2 <- metrices(pred.labels2, real.labels)
+btree3 <- metrices(pred.labels3, real.labels)
+btree4 <- metrices(pred.labels4, real.labels)
+
+btree5 <- metrices(pred.labels5, real.labels)
+btree6 <- metrices(pred.labels6, real.labels)
+btree7 <- metrices(pred.labels7, real.labels)
+btree8 <- metrices(pred.labels8, real.labels)
+
+btree_metrices <- data.frame(btree1, btree2, btree3, btree4, btree5, btree6, btree7, btree8)
+btree_metrices <- round(btree_metrices,2)
+btree_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), btree_metrices)
+
+btree_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+
+## Boosting
+
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
+
+```{r}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+```
+
+Building random forest for different models and datasets (for different imputation methods).
+
+```{r}
+set.seed(123) 
+
+boost1 <- ada(mod1, data=train1, iter = 10)
+boost2 <- ada(mod1, data=train2, iter = 10)
+boost3 <- ada(mod1, data=train3, iter = 10)
+boost4 <- ada(mod1, data=train0, iter = 10)
+
+boost5 <- ada(mod2, data=train1, iter = 10)
+boost6 <- ada(mod2, data=train2, iter = 10)
+boost7 <- ada(mod2, data=train3, iter = 10)
+boost8 <- ada(mod2, data=train0, iter = 10)
+```
+
+In the additional file, we can find basic information about all models.
+
+Predicted  posterior probabilities. Plot results where color - class.
+Since we have the same splits, we can use the same n, p, colors.
+
+The results are not so good, because there are false predictions in all models and many probabilities in the middle.
+
+```{r}
+pred.probs1 <- predict(boost1, newdata=test1, type = "prob")
+pred.probs2 <- predict(boost2, newdata=test2, type = "prob")
+pred.probs3 <- predict(boost3, newdata=test3, type = "prob")
+pred.probs4 <- predict(boost4, newdata=test0, type = "prob")
+
+pred.probs5 <- predict(boost5, newdata=test1, type = "prob")
+pred.probs6 <- predict(boost6, newdata=test2, type = "prob")
+pred.probs7 <- predict(boost7, newdata=test3, type = "prob")
+pred.probs8 <- predict(boost8, newdata=test0, type = "prob")
+```
+
+```{r, echo=FALSE}
+n <- nrow(test1)
+classes <- as.factor(test1$Class)
+
+pred.prob.plot1 <- data.frame(x = 1:n, probability = pred.probs1[,2], classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, probability = pred.probs2[,2], classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, probability = pred.probs3[,2], classes = classes)
+pred.prob.plot4 <- data.frame(x = 1:n, probability = pred.probs4[,2], classes = classes)
+
+pred.prob.plot5 <- data.frame(x = 1:n, probability = pred.probs5[,2], classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, probability = pred.probs6[,2], classes = classes)
+pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
+```
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
+```
+
+Let's also plot histograms of predicted probabilities.
+
+As we saw before, the results are not so good: many values are about 0, but also a lot of values are located in the middle between 0 and 1.
+
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p3 <- ggplot(pred.prob.plot3, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p4 <- ggplot(pred.prob.plot4, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p5 <- ggplot(pred.prob.plot5, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p6 <- ggplot(pred.prob.plot6, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p7 <- ggplot(pred.prob.plot7, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
+```
+
+Predicted class labels.
+
+```{r}
+pred.labels1 <- predict(boost1, newdata=test1)
+pred.labels2 <- predict(boost2, newdata=test2)
+pred.labels3 <- predict(boost3, newdata=test3)
+pred.labels4 <- predict(boost4, newdata=test0)
+
+pred.labels5 <- predict(boost5, newdata=test1)
+pred.labels6 <- predict(boost6, newdata=test2)
+pred.labels7 <- predict(boost7, newdata=test3)
+pred.labels8 <- predict(boost8, newdata=test0)
+
+real.labels <- test1$Class
+```
+
+
+```{r}
+boost.1 <- metrices(pred.labels1, real.labels)
+boost.2 <- metrices(pred.labels2, real.labels)
+boost.3 <- metrices(pred.labels3, real.labels)
+boost.4 <- metrices(pred.labels4, real.labels)
+
+boost.5 <- metrices(pred.labels5, real.labels)
+boost.6 <- metrices(pred.labels6, real.labels)
+boost.7 <- metrices(pred.labels7, real.labels)
+boost.8 <- metrices(pred.labels8, real.labels)
+
+boost_metrices <- data.frame(boost.1, boost.2, boost.3, boost.4, boost.5, boost.6, boost.7, boost.8)
+boost_metrices <- round(boost_metrices,2)
+boost_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), boost_metrices)
+
+boost_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+
 
 ## Random forest
 
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA. Also we need number of features.
+
 ```{r}
-# number of features
-p <-  ncol(Glass) - 1
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 
-# different settings (ntree - number of trees, mtry - number of randomly selected features)
-rf.1 <- randomForest(Type~., data=Glass, ntree=1, mtry=p, importance=TRUE)
-rf.1
-rf.2 <- randomForest(Type~., data=Glass, ntree=100, mtry=sqrt(p), importance=TRUE)
-rf.2
+p1 <-  ncol(test1) - 1
+p2 <-  ncol(test1) - 5
+```
 
-# predicted class labels
-pred.labels <- predict(rf.2, newdata=Glass, type="class")
-real.labels <- Glass$Type
-(confusion.matrix <- table(pred.labels, real.labels)) # for training set
+Building random forest for different models, parameters (ntree - number of trees, mtry - number of randomly selected features), and datasets (for different imputation methods).
 
-# predicted probabilities
-pred.probs <- predict(rf.2, newdata=Glass, type="prob")
+```{r}
+set.seed(123) 
 
-# confusion matrix  based on OOB (Out-Of-Bag) samples, i.e. observations that were not selected in a given replication
-rf.2$confusion
+rf1 <- randomForest(mod1, data=train1, ntree=500, mtry=p1, importance=TRUE)
+rf2 <- randomForest(mod1, data=train2, ntree=500, mtry=p1, importance=TRUE)
+rf3 <- randomForest(mod1, data=train3, ntree=500, mtry=p1, importance=TRUE)
 
-# Classification error plot
-plot(rf.2)
+rf4 <- randomForest(mod1, data=train1, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf5 <- randomForest(mod1, data=train2, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf6 <- randomForest(mod1, data=train3, ntree=500, mtry=sqrt(p1), importance=TRUE)
 
-# Variable importance ranking
-varImpPlot(rf.2,main = "Variable Importance Plot")
+rf7 <- randomForest(mod2, data=train1, ntree=500, mtry=p2, importance=TRUE)
+rf8 <- randomForest(mod2, data=train2, ntree=500, mtry=p2, importance=TRUE)
+rf9 <- randomForest(mod2, data=train3, ntree=500, mtry=p2, importance=TRUE)
+
+rf10 <- randomForest(mod2, data=train1, ntree=500, mtry=sqrt(p2), importance=TRUE)
+rf11 <- randomForest(mod2, data=train2, ntree=500, mtry=sqrt(p2), importance=TRUE)
+rf12 <- randomForest(mod2, data=train3, ntree=500, mtry=sqrt(p2), importance=TRUE)
+```
+
+In the additional file, we can find basic information and classification error plot for the random forests.
+
+Now, let's create a plot that displays the importance of each predictor variable in the final model. The x-axis displays the average increase in node purity of the regression trees based on splitting on the various predictors displayed on the y-axis. From the plot we can see that Protime is the most important predictor variable.
+
+In the additional file, we can see variable importance ranking for other random forest models. The results are different, but for each model, Protime is in the first place. 
+
+```{r}
+varImpPlot(rf1, main = "Variable Importance Plot")
+```
+
+Predicted  posterior probabilities. Plot results where color - class.
+Since we have the same splits, we can use the same n, p, colors.
+
+The results are not so good, because there are false predictions in all models and many probabilities in the middle.
+
+```{r}
+pred.probs1 <- predict(rf1, newdata=test1, type = "prob")
+pred.probs2 <- predict(rf2, newdata=test2, type = "prob")
+pred.probs3 <- predict(rf3, newdata=test3, type = "prob")
+
+pred.probs4 <- predict(rf4, newdata=test1, type = "prob")
+pred.probs5 <- predict(rf5, newdata=test2, type = "prob")
+pred.probs6 <- predict(rf6, newdata=test3, type = "prob")
+
+pred.probs7 <- predict(rf7, newdata=test1, type = "prob")
+pred.probs8 <- predict(rf8, newdata=test2, type = "prob")
+pred.probs9 <- predict(rf9, newdata=test3, type = "prob")
+
+pred.probs10 <- predict(rf10, newdata=test1, type = "prob")
+pred.probs11 <- predict(rf11, newdata=test2, type = "prob")
+pred.probs12 <- predict(rf12, newdata=test3, type = "prob")
+```
+
+```{r, echo=FALSE}
+n <- nrow(test1)
+classes <- as.factor(test1$Class)
+
+pred.prob.plot1 <- data.frame(x = 1:n, probability = pred.probs1[,2], classes = classes)
+pred.prob.plot2 <- data.frame(x = 1:n, probability = pred.probs2[,2], classes = classes)
+pred.prob.plot3 <- data.frame(x = 1:n, probability = pred.probs3[,2], classes = classes)
+
+pred.prob.plot4 <- data.frame(x = 1:n, probability = pred.probs4[,2], classes = classes)
+pred.prob.plot5 <- data.frame(x = 1:n, probability = pred.probs5[,2], classes = classes)
+pred.prob.plot6 <- data.frame(x = 1:n, probability = pred.probs6[,2], classes = classes)
+
+pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = classes)
+pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
+pred.prob.plot9 <- data.frame(x = 1:n, probability = pred.probs9[,2], classes = classes)
+
+pred.prob.plot10 <- data.frame(x = 1:n, probability = pred.probs10[,2], classes = classes)
+pred.prob.plot11 <- data.frame(x = 1:n, probability = pred.probs11[,2], classes = classes)
+pred.prob.plot12 <- data.frame(x = 1:n, probability = pred.probs12[,2], classes = classes)
+```
+
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p3 <- ggplot(data = pred.prob.plot3, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+p4 <- ggplot(data = pred.prob.plot4, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p5 <- ggplot(data = pred.prob.plot5, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p6 <- ggplot(data = pred.prob.plot6, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+p7 <- ggplot(data = pred.prob.plot7, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p8 <- ggplot(data = pred.prob.plot8, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p9 <- ggplot(data = pred.prob.plot9, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+p10 <- ggplot(data = pred.prob.plot10, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p11 <- ggplot(data = pred.prob.plot11, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+p12 <- ggplot(data = pred.prob.plot12, aes(x = x, y = probability)) +
+    geom_point(aes(color = classes))
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, ncol = 3, nrow = 4)
+```
+
+Let's also plot histograms of predicted probabilities.
+
+As we saw before, the results are not so good: many values are about 0, but also a lot of values are located in the middle between 0 and 1.
+
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p3 <- ggplot(pred.prob.plot3, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p4 <- ggplot(pred.prob.plot4, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p5 <- ggplot(pred.prob.plot5, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p6 <- ggplot(pred.prob.plot6, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p7 <- ggplot(pred.prob.plot7, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p9 <- ggplot(pred.prob.plot9, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+p10 <- ggplot(pred.prob.plot10, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p11 <- ggplot(pred.prob.plot11, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+p12 <- ggplot(pred.prob.plot12, aes(x = probability)) +
+   geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
+
+ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, ncol = 3, nrow = 4)
+```
+
+Predicted class labels.
+
+```{r}
+pred.labels1 <- predict(rf1, newdata=test1, type = "class")
+pred.labels2 <- predict(rf2, newdata=test2, type = "class")
+pred.labels3 <- predict(rf3, newdata=test3, type = "class")
+
+pred.labels4 <- predict(rf4, newdata=test1, type = "class")
+pred.labels5 <- predict(rf5, newdata=test2, type = "class")
+pred.labels6 <- predict(rf6, newdata=test3, type = "class")
+
+pred.labels7 <- predict(rf7, newdata=test1, type = "class")
+pred.labels8 <- predict(rf8, newdata=test2, type = "class")
+pred.labels9 <- predict(rf9, newdata=test3, type = "class")
+
+pred.labels10 <- predict(rf10, newdata=test1, type = "class")
+pred.labels11 <- predict(rf11, newdata=test2, type = "class")
+pred.labels12 <- predict(rf12, newdata=test3, type = "class")
+
+real.labels <- test1$Class
 ```
 
 
-### Comparison of accuracy (10-fold Cross-Validation scheme)
-######################################################################
+```{r}
+rf.1 <- metrices(pred.labels1, real.labels)
+rf.2 <- metrices(pred.labels2, real.labels)
+rf.3 <- metrices(pred.labels3, real.labels)
 
-mypredict.rpart <- function(object, newdata)  predict(object, newdata=newdata, type="class")
+rf.4 <- metrices(pred.labels4, real.labels)
+rf.5 <- metrices(pred.labels5, real.labels)
+rf.6 <- metrices(pred.labels6, real.labels)
 
-(error.tree         <- (errorest(Type~., data=Glass, model=rpart, predict=mypredict.rpart)))
-(error.bagging      <- (errorest(Type~., data=Glass, model=bagging)))
-(error.randomForest <- (errorest(Type~., data=Glass, model=randomForest)))
+rf.7 <- metrices(pred.labels7, real.labels)
+rf.8 <- metrices(pred.labels8, real.labels)
+rf.9 <- metrices(pred.labels9, real.labels)
+
+rf.10 <- metrices(pred.labels10, real.labels)
+rf.11 <- metrices(pred.labels11, real.labels)
+rf.12 <- metrices(pred.labels12, real.labels)
+
+rf_metrices <- data.frame(rf.1, rf.2, rf.3, rf.4, rf.5, rf.6, rf.7, rf.8, rf.9, rf.10, rf.11, rf.12)
+rf_metrices <- round(rf_metrices,2)
+rf_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), rf_metrices)
+
+rf_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+
+<!-- ## Comparison of accuracy (10-fold Cross-Validation scheme) -->
+<!-- ###################################################################### -->
+
+<!-- mypredict.rpart <- function(object, newdata)  predict(object, newdata=newdata, type="class") -->
+
+<!-- (error.tree         <- (errorest(Type~., data=Glass, model=rpart, predict=mypredict.rpart))) -->
+<!-- (error.bagging      <- (errorest(Type~., data=Glass, model=bagging))) -->
+<!-- (error.randomForest <- (errorest(Type~., data=Glass, model=randomForest))) -->
 
 <!-- ### Method -->
 <!-- ### Confusion matrix -->
@@ -1148,3 +1593,5 @@ mypredict.rpart <- function(object, newdata)  predict(object, newdata=newdata, t
 <!-- #### .632 estimator, -->
 <!-- #### .632+ estimator.  -->
 <!-- ###	ROC-curve -->
+
+

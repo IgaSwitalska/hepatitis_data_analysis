@@ -11,8 +11,12 @@ library(mice)
 library(DataExplorer)
 library(ggpubr)
 library(corrplot)
+library(imbalance)
 library(rpart)
 library(rpart.plot)
+library(randomForest)
+library(ipred)
+library(ada)
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
@@ -289,7 +293,7 @@ full.tree7 <- rpart(mod2, data=train3, control=rpart.control(cp=-1, minsplit=5))
 full.tree8 <- rpart(mod2, data=train0, control=rpart.control(cp=-1, minsplit=5))
 ```
 
-We can see that trees for different models and different datasets (for different imputation methods) are pretty different.
+We can see that full trees for different models and different datasets (for different imputation methods) are pretty different.
 
 ```{r}
 rpart.plot(full.tree1)
@@ -302,15 +306,43 @@ rpart.plot(full.tree7)
 rpart.plot(full.tree8)
 ```
 
+We can see plots and information about misclassification error.
+
+```{r}
+plotcp(full.tree1)
+printcp(full.tree1)
+
+plotcp(full.tree2)
+printcp(full.tree2)
+
+plotcp(full.tree3)
+printcp(full.tree3)
+
+plotcp(full.tree4)
+printcp(full.tree4)
+
+plotcp(full.tree5)
+printcp(full.tree5)
+
+plotcp(full.tree6)
+printcp(full.tree6)
+
+plotcp(full.tree7)
+printcp(full.tree7)
+
+plotcp(full.tree8)
+printcp(full.tree8)
+```
+
 ```{r, echo=FALSE}
 cp.opt1 <- 0.125
-cp.opt2 <- 0.165
-cp.opt3 <- 0.104
-cp.opt4 <- 0.291
+cp.opt2 <- 0.083
+cp.opt3 <- 0.083
+cp.opt4 <- 0.041
 cp.opt5 <- 0.083
-cp.opt6 <- 0.125
-cp.opt7 <- 0.001
-cp.opt8 <- 0.062 
+cp.opt6 <- 0.083
+cp.opt7 <- 0.166
+cp.opt8 <- 0.062  
 
 full.tree1.pruned <- prune(full.tree1, cp = cp.opt1)
 full.tree2.pruned <- prune(full.tree2, cp = cp.opt2)
@@ -323,6 +355,7 @@ full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
 ```
 
 We can see basic information about all pruned trees. There are both similar and different trees.
+
 ```{r}
 print(full.tree1.pruned)
 summary(full.tree1.pruned)
@@ -348,3 +381,157 @@ summary(full.tree7.pruned)
 print(full.tree8.pruned)
 summary(full.tree8.pruned)
 ```
+
+## 4.8. Bagging (bootstrap aggregating)
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+set.seed(123) 
+
+btree1 <- bagging(mod1, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree2 <- bagging(mod1, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree3 <- bagging(mod1, data=train3, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree4 <- bagging(mod1, data=train0, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+
+btree5 <- bagging(mod2, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree6 <- bagging(mod2, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree7 <- bagging(mod2, data=train3, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree8 <- bagging(mod2, data=train0, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+```
+
+We can see basic information about all random forests. The error is pretty similar.
+
+```{r}
+print(btree1)
+print(btree2)
+print(btree3)
+print(btree4)
+
+print(btree5)
+print(btree6)
+print(btree7)
+print(btree8)
+```
+
+## 4.9. Boosting
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+set.seed(123) 
+
+boost1 <- ada(mod1, data=train1, iter = 10)
+boost2 <- ada(mod1, data=train2, iter = 10)
+boost3 <- ada(mod1, data=train3, iter = 10)
+boost4 <- ada(mod1, data=train0, iter = 10)
+boost5 <- ada(mod2, data=train1, iter = 10)
+boost6 <- ada(mod2, data=train2, iter = 10)
+boost7 <- ada(mod2, data=train3, iter = 10)
+boost8 <- ada(mod2, data=train0, iter = 10)
+```
+
+We can see basic information about all random forests. The error is pretty similar.
+
+```{r}
+print(boost1)
+print(boost2)
+print(boost3)
+print(boost4)
+
+print(boost5)
+print(boost6)
+print(boost7)
+print(boost8)
+```
+
+## 4.10. Random forest
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+p1 <-  ncol(test1) - 1
+p2 <-  ncol(test1) - 5
+
+set.seed(123) 
+
+rf1 <- randomForest(mod1, data=train1, ntree=500, mtry=p1, importance=TRUE)
+rf2 <- randomForest(mod1, data=train2, ntree=500, mtry=p1, importance=TRUE)
+rf3 <- randomForest(mod1, data=train3, ntree=500, mtry=p1, importance=TRUE)
+rf4 <- randomForest(mod1, data=train1, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf5 <- randomForest(mod1, data=train2, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf6 <- randomForest(mod1, data=train3, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf7 <- randomForest(mod2, data=train1, ntree=500, mtry=p2, importance=TRUE)
+rf8 <- randomForest(mod2, data=train2, ntree=500, mtry=p2, importance=TRUE)
+rf9 <- randomForest(mod2, data=train3, ntree=500, mtry=p2, importance=TRUE)
+rf10 <- randomForest(mod2, data=train1, ntree=500, mtry=sqrt(p2), importance=TRUE)
+rf11 <- randomForest(mod2, data=train2, ntree=500, mtry=sqrt(p2), importance=TRUE)
+rf12 <- randomForest(mod2, data=train3, ntree=500, mtry=sqrt(p2), importance=TRUE)
+```
+
+We can see basic information about all random forests. The error is pretty similar.
+
+```{r}
+print(rf1)
+print(rf2)
+print(rf3)
+
+print(rf4)
+print(rf5)
+print(rf6)
+
+print(rf7)
+print(rf8)
+print(rf9)
+
+print(rf10)
+print(rf11)
+print(rf12)
+```
+
+We can see classification error plot for all random forest models. There are both similar and different results
+
+```{r}
+plot(rf1)
+plot(rf2)
+plot(rf3)
+
+plot(rf4)
+plot(rf5)
+plot(rf6)
+
+plot(rf7)
+plot(rf8)
+plot(rf9)
+
+plot(rf10)
+plot(rf11)
+plot(rf12)
+```
+
+We can see variable importance ranking for other random forest models. The results are different, but for each model, Protime is in the first place. 
+
+```{r}
+# Variable importance ranking
+varImpPlot(rf1, main = "Variable Importance Plot")
+varImpPlot(rf2, main = "Variable Importance Plot")
+varImpPlot(rf3, main = "Variable Importance Plot")
+
+varImpPlot(rf4, main = "Variable Importance Plot")
+varImpPlot(rf5, main = "Variable Importance Plot")
+varImpPlot(rf6, main = "Variable Importance Plot")
+
+varImpPlot(rf7, main = "Variable Importance Plot")
+varImpPlot(rf8, main = "Variable Importance Plot")
+varImpPlot(rf9, main = "Variable Importance Plot")
+
+varImpPlot(rf10, main = "Variable Importance Plot")
+varImpPlot(rf11, main = "Variable Importance Plot")
+varImpPlot(rf12, main = "Variable Importance Plot")
+```
+
+
+
