@@ -1,0 +1,537 @@
+---
+title: "report_addition_Switalska_Kohut.rmd"
+output: 
+  html_document
+date: "2023-12-08"
+---
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(dplyr)
+library(caret)
+library(mice)
+library(DataExplorer)
+library(ggpubr)
+library(corrplot)
+library(imbalance)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(ipred)
+library(ada)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
+df <- read.table("hepatitis.data", sep = ",")
+colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","LiverBig","LiverFirm","SpleenPalpable","Spiders","Ascites","Varices","Bilirubin","AlkPhosphate","Sgot","Albumin","Protime","Histology")
+
+df[df == "?"] <- NA
+df <- mutate_all(df, function(x) as.numeric(as.character(x)))
+categorical <- c(1, 3:14, 20)
+df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
+df[, categorical] <-  lapply(df[, categorical], as.factor)
+
+df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
+data_transform <- preProcess(df.new, method = "knnImpute")
+data_transform2 <- preProcess(df.new, method = "bagImpute")
+df1 <- predict(data_transform, df.new)
+df2 <- predict(data_transform2, df.new)
+
+unstandarize <- function(data){
+  for (i in 1:20) {
+    column <- df.new[, i]
+    if (i %in% c(15, 18)) {
+      data[, i] <- data[, i] * sd(na.omit(column)) + mean(na.omit(column))
+    } else {
+      data[, i] <- round(data[, i] * sd(na.omit(column)) + mean(na.omit(column)))
+    }
+  }
+  return(data)
+}
+
+df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
+df1 <- unstandarize(df1)
+
+methods = c(" ", " ", " ", "logreg", " ", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "pmm", "pmm", "pmm", "pmm", "pmm", " ")
+imp_multi <- mice(df, method = methods)  # Impute missing values multiple times
+df5 <- complete(imp_multi, 1)
+
+df$method <-  c(rep("omit", nrow(df)))
+df1$method <- c(rep("knn", nrow(df1)))
+df2$method <- c(rep("bag tree", nrow(df2)))
+df5$method <- c(rep("mice", nrow(df5)))
+df_all <- rbind(df, df1, df2, df5)
+df_all$method <- as.factor(df_all$method)
+```
+
+# 3. EDA
+
+## 3.2. Barplots
+
+We can see that bar plots for different methods are very similar. 
+
+```{r, warning=FALSE, message=FALSE}
+plot_bar(df_all, by = "method", by_position = "dodge")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df1[, categorical] <-  lapply(df1[, categorical], as.factor)
+plot_bar(df1[-21], by = "Class", by_position = "dodge")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df2[, categorical] <-  lapply(df2[, categorical], as.factor)
+plot_bar(df2[-21], by = "Class", by_position = "dodge")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df5[, categorical] <-  lapply(df5[, categorical], as.factor)
+plot_bar(df5[-21], by = "Class", by_position = "dodge")
+```
+
+## 3.3. Histograms
+
+We can see that density plots for different methods are very similar. Only for Protime results are a bit different.
+
+```{r, warning=FALSE, message=FALSE}
+p7 <- ggplot(df_all, aes(x = Age, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p8 <- ggplot(df_all, aes(x = Albumin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p9 <- ggplot(df_all, aes(x = AlkPhosphate, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p10 <- ggplot(df_all, aes(x = Bilirubin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p11 <- ggplot(df_all, aes(x = Protime, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+p12 <- ggplot(df_all, aes(x = Sgot, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1)
+
+ggarrange(p7, p8, p9, p10, p11, p12, ncol = 2, nrow = 3)
+```
+
+```{r, warning=FALSE, message=FALSE}
+p13 <- ggplot(df_all, aes(x = Age, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p14 <- ggplot(df_all, aes(x = Albumin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p15 <- ggplot(df_all, aes(x = AlkPhosphate, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p16 <- ggplot(df_all, aes(x = Bilirubin, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p17 <- ggplot(df_all, aes(x = Protime, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+p18 <- ggplot(df_all, aes(x = Sgot, color = method)) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_density(size = 1.1) +
+  facet_grid(Class ~ .)
+
+ggarrange(p13, p14, p15, p16, p17, p18, ncol = 2, nrow = 3)
+```
+
+## 3.4. Q-Q plot
+
+We can see that Q-Q plots for different methods are very similar. Only for Protime results are a bit different.
+
+```{r warning=FALSE, message=FALSE}
+plot_qq(df_all, by = "method")
+```
+
+## 3.5. Boxplots
+
+We can see that bar plots for different methods are very similar. 
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df_all, by = "method")
+```
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df1, by = "Class")
+```
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df2, by = "Class")
+```
+
+```{r, warning=FALSE, message=FALSE}
+plot_boxplot(df5, by = "Class")
+```
+
+## 3.6. Correlation
+ 
+We can see that correlation matrices for different methods are very similar. We also added a matrix for initial data with omitting objects with missing values.
+
+```{r, warning=FALSE, message=FALSE}
+df_omit <- na.omit(df)
+cor_matrix1 <- cor(df_omit[, sapply(df_omit, is.numeric)], method = "pearson")
+cor_matrix2 <- cor(df2[, sapply(df2, is.numeric)], method = "pearson")
+cor_matrix3 <- cor(df5[, sapply(df5, is.numeric)], method = "pearson")
+
+corrplot(cor_matrix1, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+corrplot(cor_matrix2, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+corrplot(cor_matrix3, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+```
+
+
+# 4. Classification
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
+set.seed(123) 
+inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
+
+train1 <- df1[inTrain,-21]
+test1 <- df1[-inTrain,-21]
+train2 <- df2[inTrain,-21]
+test2 <- df2[-inTrain,-21]
+train3 <- df5[inTrain,-21]
+test3 <- df5[-inTrain,-21]
+
+to_numeric1 <- function(data) {
+  data <- mutate_all(data, function(x) as.numeric(as.character(x)))
+  return(data)
+}
+
+n_new <- sum(train1$Class == 0) - sum(train1$Class == 1)
+train.num1 <- to_numeric1(train1)
+train.num2 <- to_numeric1(train2)
+train.num3 <- to_numeric1(train3)
+test.num1 <- to_numeric1(test1)
+test.num2 <- to_numeric1(test2)
+test.num3 <- to_numeric1(test3)
+
+newMWMOTE1 <- mwmote(train.num1, numInstances = n_new)
+train.balanced1 <- rbind(train.num1[-21], newMWMOTE1)
+newMWMOTE2 <- mwmote(train.num2, numInstances = n_new)
+train.balanced2 <- rbind(train.num2[-21], newMWMOTE2)
+newMWMOTE3 <- mwmote(train.num3, numInstances = n_new)
+train.balanced3 <- rbind(train.num3[-21], newMWMOTE3)
+```
+
+## 4.6. Logistic regression (LR)
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results=FALSE}
+model.logit1 <-  glm(Class~.-Class, data=train.balanced1, family=binomial(link="logit"))
+model.logit2 <-  glm(Class~.-Class, data=train.balanced2, family=binomial(link="logit"))
+model.logit3 <-  glm(Class~.-Class, data=train.balanced3, family=binomial(link="logit"))
+
+model.logit4 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced1, family=binomial(link="logit"))
+model.logit5 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced2, family=binomial(link="logit"))
+model.logit6 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced3, family=binomial(link="logit"))
+
+model.logit7 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced1, family=binomial(link="logit"))
+model.logit8 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced2, family=binomial(link="logit"))
+model.logit9 <-  glm(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=train.balanced3, family=binomial(link="logit"))
+```
+
+We can see that summary for different methods are similar. 
+
+```{r}
+summary(model.logit1)
+summary(model.logit2)
+summary(model.logit3)
+
+summary(model.logit4)
+summary(model.logit5)
+summary(model.logit6)
+
+summary(model.logit7)
+summary(model.logit8)
+summary(model.logit9)
+```
+
+## 4.7. Random tree
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+to_categorical <- function(data){
+  data[, categorical] <-  lapply(data[, categorical], as.factor)
+  return(data)
+}
+train1 <- to_categorical(train1)
+train2 <- to_categorical(train2)
+train3 <- to_categorical(train3)
+train0 <- df[inTrain,-21]
+test0 <- df[-inTrain,-21]
+train0 <- to_categorical(train0)
+test0 <- to_categorical(test0)
+
+set.seed(123) 
+
+full.tree1 <- rpart(mod1, data=train1, control=rpart.control(cp=-1, minsplit=5))
+full.tree2 <- rpart(mod1, data=train2, control=rpart.control(cp=-1, minsplit=5))
+full.tree3 <- rpart(mod1, data=train3, control=rpart.control(cp=-1, minsplit=5))
+full.tree4 <- rpart(mod1, data=train0, control=rpart.control(cp=-1, minsplit=5))
+full.tree5 <- rpart(mod2, data=train1, control=rpart.control(cp=-1, minsplit=5))
+full.tree6 <- rpart(mod2, data=train2, control=rpart.control(cp=-1, minsplit=5))
+full.tree7 <- rpart(mod2, data=train3, control=rpart.control(cp=-1, minsplit=5))
+full.tree8 <- rpart(mod2, data=train0, control=rpart.control(cp=-1, minsplit=5))
+```
+
+We can see that full trees for different models and different datasets (for different imputation methods) are pretty different.
+
+```{r}
+rpart.plot(full.tree1)
+rpart.plot(full.tree2)
+rpart.plot(full.tree3)
+rpart.plot(full.tree4)
+rpart.plot(full.tree5)
+rpart.plot(full.tree6)
+rpart.plot(full.tree7)
+rpart.plot(full.tree8)
+```
+
+We can see plots and information about misclassification error.
+
+```{r}
+plotcp(full.tree1)
+printcp(full.tree1)
+
+plotcp(full.tree2)
+printcp(full.tree2)
+
+plotcp(full.tree3)
+printcp(full.tree3)
+
+plotcp(full.tree4)
+printcp(full.tree4)
+
+plotcp(full.tree5)
+printcp(full.tree5)
+
+plotcp(full.tree6)
+printcp(full.tree6)
+
+plotcp(full.tree7)
+printcp(full.tree7)
+
+plotcp(full.tree8)
+printcp(full.tree8)
+```
+
+```{r, echo=FALSE}
+cp.opt1 <- 0.125
+cp.opt2 <- 0.083
+cp.opt3 <- 0.083
+cp.opt4 <- 0.041
+cp.opt5 <- 0.083
+cp.opt6 <- 0.083
+cp.opt7 <- 0.166
+cp.opt8 <- 0.062  
+
+full.tree1.pruned <- prune(full.tree1, cp = cp.opt1)
+full.tree2.pruned <- prune(full.tree2, cp = cp.opt2)
+full.tree3.pruned <- prune(full.tree3, cp = cp.opt3)
+full.tree4.pruned <- prune(full.tree4, cp = cp.opt4)
+full.tree5.pruned <- prune(full.tree5, cp = cp.opt5)
+full.tree6.pruned <- prune(full.tree6, cp = cp.opt6)
+full.tree7.pruned <- prune(full.tree7, cp = cp.opt7)
+full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
+```
+
+We can see basic information about all pruned trees. There are both similar and different trees.
+
+```{r}
+print(full.tree1.pruned)
+summary(full.tree1.pruned)
+
+print(full.tree2.pruned)
+summary(full.tree2.pruned)
+
+print(full.tree3.pruned)
+summary(full.tree3.pruned)
+
+print(full.tree4.pruned)
+summary(full.tree4.pruned)
+
+print(full.tree5.pruned)
+summary(full.tree5.pruned)
+
+print(full.tree6.pruned)
+summary(full.tree6.pruned)
+
+print(full.tree7.pruned)
+summary(full.tree7.pruned)
+
+print(full.tree8.pruned)
+summary(full.tree8.pruned)
+```
+
+## 4.8. Bagging (bootstrap aggregating)
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+set.seed(123) 
+
+btree1 <- bagging(mod1, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree2 <- bagging(mod1, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree3 <- bagging(mod1, data=train3, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree4 <- bagging(mod1, data=train0, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+
+btree5 <- bagging(mod2, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree6 <- bagging(mod2, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree7 <- bagging(mod2, data=train3, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+btree8 <- bagging(mod2, data=train0, nbagg=150, coob=TRUE, minsplit=2, cp=0)
+```
+
+We can see basic information about all random forests. The error is pretty similar.
+
+```{r}
+print(btree1)
+print(btree2)
+print(btree3)
+print(btree4)
+
+print(btree5)
+print(btree6)
+print(btree7)
+print(btree8)
+```
+
+## 4.9. Boosting
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+set.seed(123) 
+
+boost1 <- ada(mod1, data=train1, iter = 10)
+boost2 <- ada(mod1, data=train2, iter = 10)
+boost3 <- ada(mod1, data=train3, iter = 10)
+boost4 <- ada(mod1, data=train0, iter = 10)
+boost5 <- ada(mod2, data=train1, iter = 10)
+boost6 <- ada(mod2, data=train2, iter = 10)
+boost7 <- ada(mod2, data=train3, iter = 10)
+boost8 <- ada(mod2, data=train0, iter = 10)
+```
+
+We can see basic information about all random forests. The error is pretty similar.
+
+```{r}
+print(boost1)
+print(boost2)
+print(boost3)
+print(boost4)
+
+print(boost5)
+print(boost6)
+print(boost7)
+print(boost8)
+```
+
+## 4.10. Random forest
+
+```{r, echo=FALSE}
+mod1 <- Class ~ . - Class
+mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
+
+p1 <-  ncol(test1) - 1
+p2 <-  ncol(test1) - 5
+
+set.seed(123) 
+
+rf1 <- randomForest(mod1, data=train1, ntree=500, mtry=p1, importance=TRUE)
+rf2 <- randomForest(mod1, data=train2, ntree=500, mtry=p1, importance=TRUE)
+rf3 <- randomForest(mod1, data=train3, ntree=500, mtry=p1, importance=TRUE)
+rf4 <- randomForest(mod1, data=train1, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf5 <- randomForest(mod1, data=train2, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf6 <- randomForest(mod1, data=train3, ntree=500, mtry=sqrt(p1), importance=TRUE)
+rf7 <- randomForest(mod2, data=train1, ntree=500, mtry=p2, importance=TRUE)
+rf8 <- randomForest(mod2, data=train2, ntree=500, mtry=p2, importance=TRUE)
+rf9 <- randomForest(mod2, data=train3, ntree=500, mtry=p2, importance=TRUE)
+rf10 <- randomForest(mod2, data=train1, ntree=500, mtry=sqrt(p2), importance=TRUE)
+rf11 <- randomForest(mod2, data=train2, ntree=500, mtry=sqrt(p2), importance=TRUE)
+rf12 <- randomForest(mod2, data=train3, ntree=500, mtry=sqrt(p2), importance=TRUE)
+```
+
+We can see basic information about all random forests. The error is pretty similar.
+
+```{r}
+print(rf1)
+print(rf2)
+print(rf3)
+
+print(rf4)
+print(rf5)
+print(rf6)
+
+print(rf7)
+print(rf8)
+print(rf9)
+
+print(rf10)
+print(rf11)
+print(rf12)
+```
+
+We can see classification error plot for all random forest models. There are both similar and different results
+
+```{r}
+plot(rf1)
+plot(rf2)
+plot(rf3)
+
+plot(rf4)
+plot(rf5)
+plot(rf6)
+
+plot(rf7)
+plot(rf8)
+plot(rf9)
+
+plot(rf10)
+plot(rf11)
+plot(rf12)
+```
+
+We can see variable importance ranking for other random forest models. The results are different, but for each model, Protime is in the first place. 
+
+```{r}
+# Variable importance ranking
+varImpPlot(rf1, main = "Variable Importance Plot")
+varImpPlot(rf2, main = "Variable Importance Plot")
+varImpPlot(rf3, main = "Variable Importance Plot")
+
+varImpPlot(rf4, main = "Variable Importance Plot")
+varImpPlot(rf5, main = "Variable Importance Plot")
+varImpPlot(rf6, main = "Variable Importance Plot")
+
+varImpPlot(rf7, main = "Variable Importance Plot")
+varImpPlot(rf8, main = "Variable Importance Plot")
+varImpPlot(rf9, main = "Variable Importance Plot")
+
+varImpPlot(rf10, main = "Variable Importance Plot")
+varImpPlot(rf11, main = "Variable Importance Plot")
+varImpPlot(rf12, main = "Variable Importance Plot")
+```
+
+
+
