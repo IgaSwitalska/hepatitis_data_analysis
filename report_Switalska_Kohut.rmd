@@ -25,6 +25,8 @@ library(flextable)
 library(imbalance)
 library(cowplot)
 library(MASS)
+library(GGally)
+library(ipred)
 ```
 
 # Introduction. Data description
@@ -37,16 +39,60 @@ The main aim of our project is to analyze the dataset with clinical trial result
 
 ## Data characteristics
 
-First rows of our data frame.
+Our data set consist of 155 observations and 20 columns. The features are the following:
+
+1. **Class** - a factor at two levels, which we want to predict (1 - patient dies, 2 - patient lives).
+
+2. **Age** - age of the patients in years (from 20 to 80 years).
+
+3. **Sex** - gender of patient, a factor at two levels coded by 1 (male) and 2 (female).
+
+4. **Steroid** - steroid treatment, a factor at two levels coded by 1 (yes) and 2 (no).
+
+5. **Antivirals** - antivirals medication, a factor at two levels 1 (yes) and 2 (no).
+
+6. **Fatigue** - fatigue is a frequent and disabling symptom reported by patients with chronic hepatitis, a factor at two levels 1 (yes) and 2 (no).
+
+7. **Malaise** - malaise one of the symptoms of hepatitis, a factor at two levels 1 (yes) and 2 (no).
+
+8. **Anorexia** - anorexia, loss of appetite, a factor at two levels 1 (yes) and 2 (no).
+
+9. **LiverBig** - the size of liver increased or fatty, a factor at two levels 1 (yes) and 2 (no).
+
+10. **LiverFirm** - the liver is firm, a factor at two levels 1 (yes) and 2 (no).
+
+11. **SpleenPalpable** - splenomegaly is an enlargement of the spleen, a factor at two levels 1 (yes) and 2 (no).
+
+12. **Spiders** - enlarged blood vessels that resemble little spiders,a factor at two levels 1 (yes) and 2 (no).
+
+13. **Ascites** - ascites is the presence of excess fluid in the peritoneal cavity, a factor at two levels 1 (yes) and 2 (no).
+
+14. **Varices** - varicose veins are a medical condition in which superficial veins become enlarged and twisted, a factor at two levels 1 (yes) and 2 (no).
+
+15. **Bilirubin** - bilirubin is a substance made when the body breaks down old red blood cells, continues variable measured in mg/dL (?) (range: 0.3 - 8).
+
+16. **AlkPhosphate** - alkaline phosphatase is an enzyme made in liver cells and bile ducts, a discrete valued feature reveals level alkaline phosphatase measured in IU/L, where UI - international unit (range: 26 - 295). A 2013 research review showed that the normal range for a serum ALP level in healthy adults is 20 to 140 IU/L.
+
+17. **Sgot** - a glutamic-oxaloacetic transaminase (SGOT) test measures the levels of the enzyme AST in the blood to assess liver health. A discrete valued feature measured in units per liter of serum (range: 14 - 648). If the results of your SGOT test are high, that means one of the organs or muscles containing the enzyme could be damaged. The normal range of an SGOT test is generally between 8 and 45 units per liter of serum.
+
+18. **Albumin** - albumin is a family of globular proteins, the most common of which are the serum albumins. Low albumin levels can indicate a disorder of the liver or kidneys. Continues variable measured in mg/dL (?) (range: 2.1 - 6.4).
+
+19. **Protime** - a discrete valued feature. How long it takes blood to form a clot in sec (range: 0 - 100). It shows how bad liver works.
+
+20. **Histology** - histology is the branch of biology that studies the microscopic anatomy of biological tissues. A factor at two levels 1 (yes) and 2 (no).
 
 ```{r}
 df <- read.table("hepatitis.data", sep = ",")
 colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","LiverBig","LiverFirm","SpleenPalpable","Spiders","Ascites","Varices","Bilirubin","AlkPhosphate","Sgot","Albumin","Protime","Histology") # nolint
-# attach(df)
 ```
 
+Below we present the first rows of our data set. As can be seen, in addition to the fact that we will have to change the encoding from 1-2 to 0-1, we will also have to deal with missing values. In our dataset, they are marked as "?".
+
 ```{r}
-head(df)
+head(df) %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
 ```
 
 # Preparing data
@@ -106,7 +152,7 @@ df2 <- predict(data_transform2, df.new)
 df3 <- predict(data_transform3, df.new)
 ```
 
-Since knnImpute returns normalized data, we need to return to the initial form. Also, we have to round values for categorical variables.
+Since knnImpute returns normalized data, we need to return to the initial form. Also, we have to round values for intiger and categorical variables.
 
 ```{r, echo=FALSE}
 unstandarize <- function(data){
@@ -154,13 +200,13 @@ df_all$method <- as.factor(df_all$method)
 ```
 
 ```{r fig3, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE}
-ggplot(df_all, aes(x = LiverFirm, fill = method)) +
+ggplot(na.omit(df_all), aes(x = LiverFirm, fill = method)) +
   scale_fill_brewer(palette = "Set2") +
   geom_bar(position = "dodge")
 ```
 
 ```{r fig2, fig.height = 7, fig.width = 7, fig.align = 'center', warning=FALSE, message=FALSE}
-ggplot(df_all, aes(x = Protime, color = method)) +
+ggplot(na.omit(df_all), aes(x = Protime, color = method)) +
   scale_fill_brewer(palette = "Set2") +
   geom_density(size = 1.1) +
   facet_grid(Class ~ .)
@@ -171,15 +217,12 @@ We can see, that the median method works badly for the attribute with lots of mi
 ```{r echo=FALSE}
 df_all <- rbind(df, df1, df2, df5)
 df_all$method <- as.factor(df_all$method)
-
-df_all <- rbind(df, df1, df2, df3, df5)
-df_all$method <- as.factor(df_all$method)
 ```
 
 # EDA
 
 ## Summary
-Below we present basic statistics for continuous variables for various types of missing data substitutions. The statics are not significantly different. However, density functions must also be taken into account. They will tell us more about distribution.
+Below we present basic statistics for continuous variables for various types of missing data substitutions. The statics are not significantly different. However, density functions must also be taken into account. They will tell us more about distribution. We have already presnted the density of "Protime" to justify the rejection of this method. Other distributions will be analyzed later in the report.
 
 ```{r echo=FALSE}
 stats1 <- df_all %>%
@@ -255,12 +298,12 @@ numeric_cols <- c("Age", "Bilirubin", "AlkPhosphate", "Sgot", "Albumin", "Protim
 stats <- c("min"," q1", "median", "mean", "q3", "max", "std")
 
 #pivoting
-all_stats1 = all_stats[c(1:15),] %>%
+all_stats1 = all_stats[c(1:12),] %>%
     pivot_longer(starts_with("stat")) %>%
     transmute(method, name=paste(col, "-", name), value) %>%
     pivot_wider()
 
-all_stats2 = all_stats[c(16:30),] %>%
+all_stats2 = all_stats[c(13:24),] %>%
     pivot_longer(starts_with("stat")) %>%
     transmute(method, name=paste(col, "-", name), value) %>%
     pivot_wider()
@@ -294,27 +337,28 @@ all_stats2 %>%
 
 ## Barplots
 
+First, we will compare the distribution of binary variables for different missing values imputation methods. We can observe that only "Steroid" and  "Histology" attributes is balanced. Moreover, the distributions do not change across different imputation methods.
+
 ```{r}
 plot_bar(na.omit(df_all), by = "method", by_position = "dodge")
 ```
 
-```{r}
-plot_bar(na.omit(df), by = "method", by_position = "dodge")
-```
+Now we will try to assess the ability to separate objects from different classes by comparing the distribution of the target class for diffrent values of binary attributes. We will use only one data set (with missing values imputed using knn method) as the results for other data sets are similar.
+
 Insights:
 
-  * We have more men than women in the dataset. Moreover no women died. This may suggest that men are more likely to die from hepatitis.
+* We have more men than women in the dataset. Moreover no women died. This may suggest that men are more likely to die from hepatitis.
   
-  * Taking antiviral medications reduces the likelihood of death.
+* Almost all of the people who died had symptoms of fatigue and did not take antiviral medications.
+
+* Surprisingly, no enlarged liver was found in those who died.
   
-  * Almost all of the people who died had symptoms of fatigue and increased liver.
-  
-  * Histology and spiders might be important (?)
+* "Spiders" attribute might be important. The majority of people who died had spiders.
   
 ```{r}
 df1[, categorical] <-  lapply(df1[, categorical], as.factor)
 
-plot_bar(na.omit(df1[-21]), by = "Class", by_position = "dodge")
+plot_bar(df1[-21], by = "Class", by_position = "dodge")
 ```
 
 ## Boxplots
@@ -324,24 +368,47 @@ plot_boxplot(df1, by = "Class")
 ```
 
 ## Correlation
-We can observe two outliers (people with high Bilirubin)
 
-```{r fig1, fig.height = 10, fig.width = 10, fig.align = 'center'}
-
-cor_matrix <- cor(df1[, sapply(df1, is.numeric)], method = "pearson")
-corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+```{r echo=FALSE}
+to_numeric <- function(data) {
+  data[,categorical] <- lapply(data[, categorical], as.numeric)
+  data[,categorical] <- data[,categorical] - 1
+  return(data)
+}
 ```
-```{r}
+
+First we will analyze the Pearson correlation between continuous variables. According to the correlation matrix the Albumin is correlated to Bilirubin, AlkPhosphate and Protime. The Bilirubin and Protime attributes are also correlated. Furthermore, as can be seen on the scatter plots, combinations of Albumin and Protime with other attributes seem to be good at distinguishing between classes.
+
+We can also observe two outliers (people with high level of Bilirubin).
+
+```{r fig1, fig.height = 10, fig.width = 10, fig.align = 'center', echo=FALSE}
+# cor_matrix <- cor(df1[, sapply(df1, is.numeric)], method = "pearson")
+# corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+```
+
+```{r fig_corr, fig.height = 10, fig.width = 10, fig.align = 'center'}
+ggpairs(df1, columns = c(2,15:19), aes(color = Class, alpha = 0.5))
+```
+
+```{r echo=FALSE}
 # numeric_cols <- c("Age", "Bilirubin", "AlkPhosphate", "Sgot", "Albumin", "Protime")
 
-p1 <- ggplot(df1, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3)
-p2 <- ggplot(df1, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=3)
-p3 <- ggplot(df1, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=3)
-p4 <- ggplot(df1, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3)
+# p1 <- ggplot(df1, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=1)
+# p2 <- ggplot(df1, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=1)
+# p3 <- ggplot(df1, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=1)
+# p4 <- ggplot(df1, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=1)
 
-plot_grid(p1, p2, p3, p4, labels = "AUTO")
+# plot_grid(p1, p2, p3, p4, labels = "AUTO")
 
 ```
+
+When it comes to correlation between binary variables, "Fatigue" and "Malaise" are the most correlated. The target class, on the other hand, is most correlated with "Spiders", "Ascites", "Varices", "Histology" and "Malaise".
+
+```{r fig_corr2, fig.height = 10, fig.width = 10, fig.align = 'center'}
+cor_matrix <- cor(to_numeric(df1)[, categorical], method = "pearson")
+corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
+```
+
 
 ```{r echo=FALSE}
 # plot_histogram(df)
@@ -376,6 +443,7 @@ inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
 train <- df1[inTrain,]
 train.standarized <- df1.standarized[inTrain,]
 test <- df1[-inTrain,]
+test.standarized <- df1.standarized[-inTrain,]
 ```
 ## Solving class imbalance problem
 ```{r}
@@ -383,6 +451,7 @@ test <- df1[-inTrain,]
 n_new <- sum(train$Class == 0) - sum(train$Class == 1)
 
 newMWMOTE <- mwmote(train.standarized, numInstances = n_new)
+train.balanced.std <- rbind(train.standarized[-21], newMWMOTE)
 newMWMOTE <- unstandarize(newMWMOTE)
 train.balanced <- rbind(train[-21], newMWMOTE)
 ```
@@ -394,13 +463,6 @@ plotComparison(train[-21], train.balanced, attrs = c("Bilirubin","Albumin", "Pro
 
 ### Oversampling
 
-```{r echo=FALSE}
-to_numeric <- function(data) {
-  data[,categorical] <- lapply(data[, categorical], as.numeric)
-  data[,categorical] <- data[,categorical] - 1
-  return(data)
-}
-```
 ```{r}
 train.balanced.num <- to_numeric(train.balanced)
 train.num <- to_numeric(train)
@@ -444,76 +506,259 @@ metrices <- function(pred, real){
 # two variables
 model.1 <- lm(Class~Albumin+Bilirubin, data=train.balanced.num) 
 model.2 <- lm(Class~Albumin+AlkPhosphate, data=train.balanced.num) 
-model.3 <- lm(Class~Albumin+Protime, data=train.balanced.num) 
-model.4 <- lm(Class~Bilirubin+Protime, data=train.balanced.num) 
-model.5 <- lm(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.balanced.num) 
+model.3 <- lm(Class~Albumin+Sgot, data=train.balanced.num) 
+model.4 <- lm(Class~Albumin+Protime, data=train.balanced.num) 
+model.5 <- lm(Class~Protime+Age, data=train.balanced.num) 
+model.6 <- lm(Class~Protime+Bilirubin, data=train.balanced.num) 
+model.7 <- lm(Class~Protime+AlkPhosphate, data=train.balanced.num) 
+model.8 <- lm(Class~Protime+Sgot, data=train.balanced.num) 
+model.9 <- lm(Class~Albumin+Age, data=train.balanced.num) 
+
+model.10 <- lm(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.balanced.num) 
 ```
 
-```{r}
+```{r fig_lr, fig.height = 10, fig.width = 10, fig.align = 'center', echo=FALSE}
 # two variables
-p1 <- ggplot(test, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.1),intercept=intercept(model.1))
-p2 <- ggplot(test, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.2),intercept=intercept(model.2))
-p3 <- ggplot(test, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.3),intercept=intercept(model.3))
-p4 <- ggplot(test, aes(x=Bilirubin, y=Protime,color=Class)) + geom_point(size=3) + geom_abline(slope=slope(model.4),intercept=intercept(model.4))
+p1 <- ggplot(test, aes(x=Albumin, y=Bilirubin,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.1),intercept=intercept(model.1))
+p2 <- ggplot(test, aes(x=Albumin, y=AlkPhosphate,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.2),intercept=intercept(model.2))
+p3 <- ggplot(test, aes(x=Albumin, y=Sgot,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.3),intercept=intercept(model.3))
+p4 <- ggplot(test, aes(x=Albumin, y=Protime,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.4),intercept=intercept(model.4))
+p5 <- ggplot(test, aes(x=Protime, y=Age,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.5),intercept=intercept(model.5))
+p6 <- ggplot(test, aes(x=Protime, y=Bilirubin,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.6),intercept=intercept(model.6))
+p7 <- ggplot(test, aes(x=Protime, y=AlkPhosphate,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.7),intercept=intercept(model.7))
+p8 <- ggplot(test, aes(x=Protime, y=Sgot,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.8),intercept=intercept(model.8))
+p9 <- ggplot(test, aes(x=Albumin, y=Age,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.9),intercept=intercept(model.9))
 
 # title <- ggdraw() + draw_label("Comparison of linear regression classifiers", fontface='bold')
-plot_grid(p1, p2, p3, p4, ncol=2,labels = "AUTO")
+plot_grid(p1, p2, p3, p4, p5, p6, p7, p8, p9, labels = "AUTO")
 ```
-```{r}
-# model.2 <- lm(Class~Sex+Anorexia+Spiders+Bilirubin, data=train.balanced.num) 
+```{r, echo=FALSE}
 All <- metrices(lr_pred(model.0, test.num, 0.5), test.num$Class)
 Albumin.Bilirubin <- metrices(lr_pred(model.1, test.num, 0.5), test.num$Class)
 Albumin.AlkPhosphate <- metrices(lr_pred(model.2, test.num, 0.5), test.num$Class)
-Albumin.Protime <- metrices(lr_pred(model.3, test.num, 0.5), test.num$Class)
-Bilirubin.Protime <- metrices(lr_pred(model.4, test.num, 0.5), test.num$Class)
-Important <- metrices(lr_pred(model.5, test.num, 0.5), test.num$Class)
+Albumin.Sgot <- metrices(lr_pred(model.3, test.num, 0.5), test.num$Class)
+Albumin.Protime <- metrices(lr_pred(model.4, test.num, 0.5), test.num$Class)
+Protime.Age <- metrices(lr_pred(model.5, test.num, 0.5), test.num$Class)
+Protime.Bilirubin <- metrices(lr_pred(model.6, test.num, 0.5), test.num$Class)
+Protime.AlkPhosphate <- metrices(lr_pred(model.7, test.num, 0.5), test.num$Class)
+Protime.Sgot <- metrices(lr_pred(model.8, test.num, 0.5), test.num$Class)
+Albumin.Age <- metrices(lr_pred(model.9, test.num, 0.5), test.num$Class)
 
-lr_metrices <- data.frame(All, Important, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Protime, Bilirubin.Protime)
-lr_metrices <- round(lr_metrices,2)
-lr_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices)
+Important <- metrices(lr_pred(model.10, test.num, 0.5), test.num$Class)
 
-lr_metrices %>% 
+lr_metrices1 <- data.frame(All, Important, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
+lr_metrices1 <- round(lr_metrices1,2)
+lr_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices1)
+
+lr_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
+lr_metrices2 <- round(lr_metrices2,2)
+lr_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices2)
+
+lr_metrices1 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+
+lr_metrices2 %>% 
     flextable() %>% 
     theme_box() %>% 
     autofit()
 ```
-### Tresholding
-
-```{r}
-# model.tr.0 <- lm(Class~., data=train.num[-21]) 
-# pred.tr.0 <- predict(model.tr.0, test.num[-21]) 
-# metrices(lr_pred(model.tr.0, test.num[-21], 0.1), test.num$Class)
-# confusionMatrix(table(round(pred.tr.0), test.num$Class), positive = "1")
-```
-
 ## LDA 
 
+### Thresholding
+
+For the binary clasification, where classes distribution is balanced the LDA is equivalent to the linerar regression. Hence we will compare the linear discriminat model for the different threshlods calculated based on the cost matrix.
 
 ```{r}
 model.0 <- lda(Class~., data=train.num[-21]) 
-metrices(lda_pred(model.0, test.num[-21], 0.5), test.num[-21]$Class)
-
 model.1 <- lda(Class~Albumin+Bilirubin, data=train.num[-21]) 
 model.2 <- lda(Class~Albumin+AlkPhosphate, data=train.num[-21]) 
-model.3 <- lda(Class~Albumin+Protime, data=train.num[-21]) 
-model.4 <- lda(Class~Bilirubin+Protime, data=train.num[-21])
-model.5 <- lda(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.num[-21]) 
+model.3 <- lda(Class~Albumin+Sgot, data=train.num[-21]) 
+model.4 <- lda(Class~Albumin+Protime, data=train.num[-21]) 
+model.5 <- lda(Class~Protime+Age, data=train.num[-21]) 
+model.6 <- lda(Class~Protime+Bilirubin, data=train.num[-21]) 
+model.7 <- lda(Class~Protime+AlkPhosphate, data=train.num[-21]) 
+model.8 <- lda(Class~Protime+Sgot, data=train.num[-21]) 
+model.9 <- lda(Class~Albumin+Age, data=train.num[-21]) 
+
+model.10 <- lda(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.num[-21]) 
+
 ```
 
 ```{r}
-All <- metrices(lda_pred(model.0, test.num[-21], 0.5), test.num[-21]$Class)
-Albumin.Bilirubin <- metrices(lda_pred(model.1, test.num[-21], 0.5), test.num[-21]$Class)
-Albumin.AlkPhosphate <- metrices(lda_pred(model.2, test.num[-21], 0.5), test.num[-21]$Class)
-Albumin.Protime <- metrices(lda_pred(model.3, test.num[-21], 0.5), test.num[-21]$Class)
-Bilirubin.Protime <- metrices(lda_pred(model.4, test.num[-21], 0.5), test.num[-21]$Class)
-Important <- metrices(lda_pred(model.5, test.num[-21], 0.5), test.num[-21]$Class)
+# model.0 <- lda(Class~., data=train.num[-21]) 
+model.1 <- qda(Class~Albumin+Bilirubin, data=train.num[-21]) 
+model.2 <- qda(Class~Albumin+AlkPhosphate, data=train.num[-21]) 
+model.3 <- qda(Class~Albumin+Sgot, data=train.num[-21]) 
+model.4 <- qda(Class~Albumin+Protime, data=train.num[-21]) 
+model.5 <- qda(Class~Protime+Age, data=train.num[-21]) 
+model.6 <- qda(Class~Protime+Bilirubin, data=train.num[-21]) 
+model.7 <- qda(Class~Protime+AlkPhosphate, data=train.num[-21]) 
+model.8 <- qda(Class~Protime+Sgot, data=train.num[-21]) 
+model.9 <- qda(Class~Albumin+Age, data=train.num[-21]) 
 
-lda_metrices <- data.frame(All, Important, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Protime, Bilirubin.Protime)
-lda_metrices <- round(lda_metrices,2)
-lda_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices)
+model.10 <- lda(Class~Sex+Steroid+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Protime, data=train.num[-21]) 
 
-lda_metrices %>% 
+```
+```{r echo=FALSE}
+p_thr = 0.5
+test.num.copy <- test.num
+test.num <- test.num[-21]
+
+All <- metrices(lda_pred(model.0, test.num, p_thr), test.num$Class)
+Albumin.Bilirubin <- metrices(lda_pred(model.1, test.num, p_thr), test.num$Class)
+Albumin.AlkPhosphate <- metrices(lda_pred(model.2, test.num, p_thr), test.num$Class)
+Albumin.Sgot <- metrices(lda_pred(model.3, test.num, p_thr), test.num$Class)
+Albumin.Protime <- metrices(lda_pred(model.4, test.num, p_thr), test.num$Class)
+Protime.Age <- metrices(lda_pred(model.5, test.num, p_thr), test.num$Class)
+Protime.Bilirubin <- metrices(lda_pred(model.6, test.num, p_thr), test.num$Class)
+Protime.AlkPhosphate <- metrices(lda_pred(model.7, test.num, p_thr), test.num$Class)
+Protime.Sgot <- metrices(lda_pred(model.8, test.num, p_thr), test.num$Class)
+Albumin.Age <- metrices(lda_pred(model.9, test.num, p_thr), test.num$Class)
+
+Important <- metrices(lda_pred(model.10, test.num, p_thr), test.num$Class)
+
+lda_metrices1 <- data.frame(All, Important, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
+lda_metrices1 <- round(lda_metrices1,2)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+
+lda_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
+lda_metrices2 <- round(lda_metrices2,2)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices2)
+
+lda_metrices1 %>% 
     flextable() %>% 
     theme_box() %>% 
     autofit()
+
+lda_metrices2 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+```{r echo=FALSE}
+p_thr = 0.167
+test.num.copy <- test.num
+test.num <- test.num[-21]
+
+All <- metrices(lda_pred(model.0, test.num, p_thr), test.num$Class)
+Albumin.Bilirubin <- metrices(lda_pred(model.1, test.num, p_thr), test.num$Class)
+Albumin.AlkPhosphate <- metrices(lda_pred(model.2, test.num, p_thr), test.num$Class)
+Albumin.Sgot <- metrices(lda_pred(model.3, test.num, p_thr), test.num$Class)
+Albumin.Protime <- metrices(lda_pred(model.4, test.num, p_thr), test.num$Class)
+Protime.Age <- metrices(lda_pred(model.5, test.num, p_thr), test.num$Class)
+Protime.Bilirubin <- metrices(lda_pred(model.6, test.num, p_thr), test.num$Class)
+Protime.AlkPhosphate <- metrices(lda_pred(model.7, test.num, p_thr), test.num$Class)
+Protime.Sgot <- metrices(lda_pred(model.8, test.num, p_thr), test.num$Class)
+Albumin.Age <- metrices(lda_pred(model.9, test.num, p_thr), test.num$Class)
+
+Important <- metrices(lda_pred(model.10, test.num, p_thr), test.num$Class)
+
+lda_metrices1 <- data.frame(All, Important, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
+lda_metrices1 <- round(lda_metrices1,2)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+
+lda_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
+lda_metrices2 <- round(lda_metrices2,2)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices2)
+
+lda_metrices1 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+
+lda_metrices2 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+
+## KNN 
+
+First we performed 5 times repeated 5-fold Cross Validation for a model that takes into account all variables. We chose the 5 most important features: Albumin, Ascites, Protime, Age, Bilirubin and check all their combinations. 
+
+```{r echo=FALSE}
+set.seed(123) 
+k.grid <- data.frame(k=1:25)
+cvControl <- trainControl(method="repeatedcv",number=5, repeats=5)
+
+knn.model.0 <- train(train.balanced.std[-1], train.balanced$Class, method="knn", tuneGrid =  k.grid, trControl=cvControl)
+
+plot(varImp(knn.model.0, scale=FALSE))
+```
+```{r echo=FALSE}
+lappend <- function (lst, ...){
+lst <- c(lst, list(...))
+  return(lst)
+}
+```
+```{r}
+comb <- list(c(18,13),c(18,19),c(18,2),c(18,15),c(13,19),c(13,2),c(13,15),c(19,2),c(19,15),c(2,15))
+
+all_metrics <- list(c(metrices(predict(knn.model.0, newdata=test.standarized), test.num$Class), knn.model.0$bestTune[[1]]))
+for (i in 1:10) {
+  knn.model <- train(train.balanced.std[comb[[i]]], train.balanced$Class, method="knn", tuneGrid =  k.grid, trControl=cvControl)
+  all_metrics <- lappend(all_metrics,c(metrices(predict(knn.model, newdata=test.standarized[comb[[i]]]), test.num$Class), knn.model$bestTune[[1]]))
+}
+```
+```{r echo=FALSE}
+knn_metrices <- data.frame(all_metrics)
+colnames(knn_metrices) <- c("All","Albumin.Ascites", "Albumin.Protime", "Albumin.Age", "Albumin.Bilirubin", "Ascites.Protime",
+"Ascites.Age","Ascites.Bilirubin","Protime.Age", "Protime.Bilirubin", "Age.Bilirubin")
+
+knn_metrices <- round(knn_metrices,2)
+knn_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure", "k"),knn_metrices)
+
+knn_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+```{r}
+comb <- list(c(18,13,19),c(18,13,2),c(18,13,15),c(18,19,2),c(18,19,15),c(18,2,15),c(13,19,2),c(13,19,15),c(13,2,15),c(19,2,15))
+
+all_metrics <- list(c(metrices(predict(knn.model.0, newdata=test.standarized), test.num$Class), knn.model.0$bestTune[[1]]))
+for (i in 1:10) {
+  knn.model <- train(train.balanced.std[comb[[i]]], train.balanced$Class, method="knn", tuneGrid =  k.grid, trControl=cvControl)
+  all_metrics <- lappend(all_metrics,c(metrices(predict(knn.model, newdata=test.standarized[comb[[i]]]), test.num$Class), knn.model$bestTune[[1]]))
+}
+```
+```{r echo=FALSE}
+knn_metrices <- data.frame(all_metrics)
+colnames(knn_metrices) <- c("All","Albumin.Ascites.Protime", "Albumin.Ascites.Age", "Albumin.Ascites.Bilirubin", "Albumin.Protime.Age", "Albumin.Protime.Bilirubin",
+"Albumin.Age.Bilirubin","Ascites.Protime.Age","Ascites.Protime.Bilirubin", "Ascites.Age.Bilirubin", "Protime.Age.Bilirubin")
+
+knn_metrices <- round(knn_metrices,2)
+knn_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure", "k"),knn_metrices)
+
+knn_metrices %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
+
+As can be seen in the tables above the best results can be obtain for the following features: Protime, Bilirubin and Age. However, the best number of nearest neighbours selected during cross validation is 1, which may lead to overfitting. We will see if we can reduce the complexity of the algorithm. 
+
+First we will plot the accuracy as a function of number of neighbours to see how it behaves. We can observe two things: the accuracy is not stable and drops significantly at the beginning.
+
+```{r}
+k.grid <- data.frame(k=1:25)
+
+cvControl <- trainControl(method="repeatedcv",number=5, repeats=5)
+
+knn.model <- train(train.balanced.std[c(19,15,2)], train.balanced$Class, method="knn", tuneGrid =  k.grid, trControl=cvControl)
+
+ggplot(knn.model)+ geom_vline(xintercept = knn.model$bestTune[[1]], col="red", lty=2)
+```
+
+We will repeat the cross validation excluding the possibilty of 1-NN algorithm.
+```{r}
+k.grid <- data.frame(k=2:25)
+
+cvControl <- trainControl(method="boot",number=10)
+# cvControl <- trainControl(method="repeatedcv",number=5, repeats=5)
+knn.model <- train(train.balanced.std[c(19,15,2)], train.balanced$Class, method="knn", tuneGrid =  k.grid, trControl=cvControl)
+
+ggplot(knn.model)+ geom_vline(xintercept = knn.model$bestTune[[1]], col="red", lty=2)
 ```
