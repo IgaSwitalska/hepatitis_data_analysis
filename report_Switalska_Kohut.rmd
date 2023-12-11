@@ -6,7 +6,7 @@ output:
   pdf_document: default
 ---
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
 library(dplyr)
 library(visdat)
 library(caret)
@@ -80,7 +80,7 @@ Our data set consist of 155 observations and 20 columns. The features are the fo
 
 16. **AlkPhosphate** - alkaline phosphatase is an enzyme made in liver cells and bile ducts, a discrete valued feature reveals level alkaline phosphatase measured in IU/L, where UI - international unit. A 2013 research review showed that the normal range for a serum ALP level in healthy adults is 20 to 140 IU/L.
 
-17. **Sgot** - a glutamic-oxaloacetic transaminase (SGOT) test measures the levels of the enzyme AST in the blood to assess liver health. A discrete valued feature measured in units per liter of serum (range: 14 - 648). If the results of your SGOT test are high, that means one of the organs or muscles containing the enzyme could be damaged. The normal range of an SGOT test is generally between 8 and 45 units per liter of serum.
+17. **Sgot** - a glutamic-oxaloacetic transaminase (SGOT) test measures the levels of the enzyme AST in the blood to assess liver health. A discrete valued feature measured in units per liter of serum. If the results of your SGOT test are high, that means one of the organs or muscles containing the enzyme could be damaged. The normal range of an SGOT test is generally between 8 and 45 units per liter of serum.
 
 18. **Albumin** - albumin is a family of globular proteins, the most common of which are the serum albumins. Low albumin levels can indicate a disorder of the liver or kidneys.
 
@@ -96,7 +96,12 @@ colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise"
 Below we present the first rows of our data set. As can be seen, in addition to the fact that we will have to change the encoding from 1-2 to 0-1, we will also have to deal with missing values. In our dataset, they are marked as "?".
 
 ```{r}
-head(df) %>% 
+head(df[1:10]) %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+
+head(df[11:20]) %>% 
     flextable() %>% 
     theme_box() %>% 
     autofit()
@@ -145,7 +150,7 @@ We used several methods to impute missing values: knnImpute (df1), bagImpute (df
 We need all numerical values to use the first 3 methods.
 
 ```{r}
-set.seed(123) 
+set.seed(123)
 df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
 data_transform <- preProcess(df.new, method = "knnImpute")
 data_transform2 <- preProcess(df.new, method = "bagImpute")
@@ -216,7 +221,7 @@ ggplot(na.omit(df_all), aes(x = Protime, color = method)) +
   facet_grid(Class ~ .)
 ```
 
-The median method works badly for the attribute with many missing values (we have such a feature). We can see that the distributions of both LiverFirm and Protime have changed a lot compared to the original. So we can not use it. For the rest, results are similar, but we can also skip mice single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn(df1), bag tree(df2), and mice(df5). 
+The median method works badly for the attribute with many missing values (we have such a feature). We can see that the distributions of both LiverFirm and Protime have changed a lot compared to the original. Median method added all values to the class with bigger number of records for categorical attributes. So we can not use it. For the rest, results are similar, but we can also skip mice single because mice is just an average value of 5 single using of this (so results must be better). So, we will compare three methods of imputing missing values: knn(df1), bag tree(df2), and mice(df5). 
 
 ```{r echo=FALSE}
 df_all <- rbind(df, df1, df2, df5)
@@ -421,7 +426,7 @@ Insights:
   
   * But, maybe, it will be difficult to separate objects from different classes, because they are overlapping. Only Albumin and Protime are a bit of difference. There are no values from class 1 with values of Albumin higher than 4.3 and a few values from class 1 with values of Protime higher than 50.
 
-```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(df, aes(x = Age, fill = Class)) +
    geom_histogram(color='#f8766d', alpha=0.6, position='identity')
 
@@ -472,7 +477,7 @@ In the additional file, we can see box plots for different methods of imputing m
 
 First we will analyze the Pearson correlation between continuous variables. To calculate correlation, we must use data without missing values, so we use data with imputing missing values using knn. In the additional file, we can see a correlation matrix for other methods of imputing missing values. The results are very similar.
 
-According to the correlation matrix the Albumin is correlated to Bilirubin, AlkPhosphate and Protime. The Bilirubin and Protime attributes are also correlated. Furthermore, as can be seen on the scatter plots, combinations of Albumin and Protime with other attributes seem to be good at distinguishing between classes.
+According to the correlation matrix we have low correlation for all pair of features (< 0.41). Furthermore, as can be seen on the scatter plots, combinations of Albumin and Protime with other attributes seem to be good at distinguishing between classes.
 
 We can also observe two outliers (people with high level of Bilirubin).
 
@@ -480,7 +485,8 @@ We can also observe two outliers (people with high level of Bilirubin).
 ggpairs(df1, columns = c(2,15:19), aes(color = Class, alpha = 0.5))
 ```
 
-When it comes to correlation between binary variables, "Fatigue" and "Malaise" are the most correlated. The target class, on the other hand, is most correlated with "Spiders", "Ascites", "Varices", "Histology" and "Malaise".
+When it comes to correlation between binary variables, "Malaise" is correlated to "Fatigue" and "Anorexia". The target class, on the other hand, is most correlated with "Spiders" and "Ascites".
+
 ```{r}
 to_numeric <- function(data) {
   data[,categorical] <- lapply(data[, categorical], as.numeric)
@@ -500,13 +506,13 @@ corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 
 * Results in EDA for all imputing data are similar;
 
-* We have imbalance problem;
+* We have class imbalance problem;
 
 * Most of categorical attributes also have imbalanced classes;
 
-* We have low correlation for all pair of features (< 0.41);
+* We have low correlation for almost all pairs of features (< 0.41);
 
-* Next fields seems to be important: Antivirals, Fatigue, LiverBig, Histology, Albumin,  Bilirubin, and Protime;
+* Next fields seems to be important: Antivirals, Fatigue, LiverBig, Albumin,  Bilirubin, and Protime;
 
 * Next variables seems useless: Steroid, Age, AlkPhosphate, and Sgot.
 
@@ -531,6 +537,7 @@ test3 <- df5[-inTrain,-21]
 
 ## Solving class imbalance problem
 
+To solve class imbalance problem we decided to use Majority Weighted Minority Oversampling Technique.
 We have the same values in variable Class in datasets for all imputing methods, so we can use the same n_new.
 
 ```{r}
@@ -570,6 +577,37 @@ train.balanced1.2[, categorical] <-  lapply(train.balanced1.2[, categorical], as
 plotComparison(train1, train.balanced1.2, attrs = c("Bilirubin","Albumin", "Protime"))
 ```
 
+
+## Confusion matrix
+
+In our case we have medical data, so we can use:
+
+  * Sensitivity/Recall – an estimate of the probability that the test will predict the death, provided that the patient is actually dead.
+
+  * Specificity – an estimate of the probability that the test predicts that the patient is alive, provided that he or she is in fact alive.
+
+  * Precision – an estimate of the probability that the patient is in fact dead, provided that he or she is predicted to be dead.
+  
+  *  Also, the consequences of a mistaken diagnosis of a disease in a healthy person are usually less serious than if the disease is not diagnosed in a really sick person.
+  
+  * So, in our case, sensitivity is more important.
+  
+  * Also, we have an imbalance problem, so Accuracy can show wrong results.
+  
+Formulas:
+
+  * Sensitivity/Recall = TP / (TP + FN)
+  
+  * Specificity = TN / (FP + TN)
+
+  * Precision = TP / (FP + TP)
+  
+  * F1 = 2 ∗ precision * recall / (precision + recall)
+  
+  * BalancedAccuracy = (sensitivity + specificity) / 2
+  
+  * Accuracy = (TP + TN) / N
+  
 ## Linear regression
 
 Our first clasification is based linear regression. We fited the model, which took into account all the variables. As can be seen the importatnt variables are the following: Sex, Malaise, Anorexia, SpleenPalpable, Spiders, Bilurubin, Albumin and Protime.
@@ -579,7 +617,14 @@ set.seed(123)
 model.0 <- lm(Class~., data=train.balanced1) 
 summary(model.0)
 ```
-
+```{r, echo=FALSE}
+confusion.matrix.results <- function(cm){
+  byClass <- cm$byClass[c(1, 2, 7, 11)]
+  overall <- cm$overall[1:2]
+  statistics <- append(overall, byClass)
+  return(statistics)
+}
+```
 ```{r echo=FALSE}
 slope <- function(model){
   -model$coefficients[2]/model$coefficients[3]
@@ -600,12 +645,10 @@ lda_pred <- function(model,test,thr){
   return(pred)
 }
 metrices <- function(pred, real){
-  confusion.matrix <- table(pred, real)
-  a <- sum(diag(confusion.matrix))/sum(confusion.matrix)
-  r <- recall(confusion.matrix, relevant = "1")
-  p <- precision(confusion.matrix, relevant = "1")
-  f <- 2 * p * r / (p + r)
-  return(c(a,r,p,f))
+  confusion.matrix <- confusionMatrix(table(pred, real), positive = "1")
+  statistics <- confusion.matrix.results(confusion.matrix)
+  p <- precision(table(pred, real), relevant = "1")
+  return(c(statistics,p))
 }
 ```
 
@@ -659,11 +702,11 @@ Important <- metrices(lr_pred(model.10, test.num1, 0.5), test1$Class)
 
 lr_metrices1 <- data.frame(All, Important, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
 lr_metrices1 <- round(lr_metrices1,2)
-lr_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices1)
+lr_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lr_metrices1)
 
 lr_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
 lr_metrices2 <- round(lr_metrices2,2)
-lr_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices2)
+lr_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lr_metrices2)
 
 lr_metrices1 %>% 
     flextable() %>% 
@@ -701,20 +744,21 @@ Protime.Bilirubin.2 <- metrices(lr_pred(model.6.2, test.num2, 0.5), test2$Class)
 Protime.Bilirubin.3 <- metrices(lr_pred(model.6.3, test.num3, 0.5), test3$Class)
 
 Important.1 <- metrices(lr_pred(model.10.1, test.num1, 0.5), test1$Class)
+lr.imp.1 <- Important.1
 Important.2 <- metrices(lr_pred(model.10.2, test.num2, 0.5), test2$Class)
 Important.3 <- metrices(lr_pred(model.10.3, test.num3, 0.5), test3$Class)
 
 lr_metrices1 <- data.frame(Protime.Age.1, Protime.Age.2, Protime.Age.3)
 lr_metrices1 <- round(lr_metrices1,2)
-lr_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices1)
+lr_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lr_metrices1)
 
 lr_metrices2 <- data.frame(Protime.Bilirubin.1, Protime.Bilirubin.2, Protime.Bilirubin.3)
 lr_metrices2 <- round(lr_metrices2,2)
-lr_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices2)
+lr_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lr_metrices2)
 
 lr_metrices3 <- data.frame(Important.1, Important.2, Important.3)
 lr_metrices3 <- round(lr_metrices3,2)
-lr_metrices3 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lr_metrices3)
+lr_metrices3 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lr_metrices3)
 
 lr_metrices1 %>% 
     flextable() %>% 
@@ -774,11 +818,11 @@ Important <- metrices(lda_pred(model.10, test.num1, p_thr), test1$Class)
 
 lda_metrices1 <- data.frame(All, Important, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
 lda_metrices1 <- round(lda_metrices1,2)
-lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices1)
 
 lda_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
 lda_metrices2 <- round(lda_metrices2,2)
-lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices2)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices2)
 
 lda_metrices1 %>% 
     flextable() %>% 
@@ -811,11 +855,11 @@ Important <- metrices(lda_pred(model.10, test.num1, p_thr), test1$Class)
 
 lda_metrices1 <- data.frame(All, Important, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
 lda_metrices1 <- round(lda_metrices1,2)
-lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices1)
 
 lda_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
 lda_metrices2 <- round(lda_metrices2,2)
-lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices2)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices2)
 
 lda_metrices1 %>% 
     flextable() %>% 
@@ -841,6 +885,7 @@ model.10.3 <- lda(Class~Sex+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Al
 ```{r, echo=FALSE}
 p_thr = 0.167
 Protime.Bilirubin.1 <- metrices(lda_pred(model.6.1, test.num1, p_thr), test1$Class)
+lda.pb.1 <- Protime.Bilirubin.1
 Protime.Bilirubin.2 <- metrices(lda_pred(model.6.2, test.num2, p_thr), test2$Class)
 Protime.Bilirubin.3 <- metrices(lda_pred(model.6.3, test.num3, p_thr), test3$Class)
 
@@ -850,11 +895,11 @@ Important.3 <- metrices(lda_pred(model.10.3, test.num3, p_thr), test3$Class)
 
 lda_metrices1 <- data.frame(Protime.Bilirubin.1, Protime.Bilirubin.2, Protime.Bilirubin.3)
 lda_metrices1 <- round(lda_metrices1,2)
-lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices1)
 
 lda_metrices2 <- data.frame(Important.1, Important.2, Important.3)
 lda_metrices2 <- round(lda_metrices2,2)
-lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices2)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices2)
 
 lda_metrices1 %>% 
     flextable() %>% 
@@ -868,27 +913,26 @@ lda_metrices2 %>%
 ```
 ## Quadratic discriminant analysis (QDA)
 
-For the QDA we will take into account only numeric variables.
+For the QDA we will take into account only numeric variables and we will compare our results with LDA. The best model is the same (Protime-Bilirubin). However the recall and F1 are better for LDA. 
+
+On the other hand Protime-Age and Albumin-Bilirubin models improved they performance.
+
 ```{r}
-model.0 <- qda(Class~Age+Bilirubin+AlkPhosphate+Sgot+Albumin+Protime, data=train.balanced1)
-model.1 <- qda(Class~Albumin+Bilirubin, data=train.balanced1) 
-model.2 <- qda(Class~Albumin+AlkPhosphate, data=train.balanced1) 
-model.3 <- qda(Class~Albumin+Sgot, data=train.balanced1) 
-model.4 <- qda(Class~Albumin+Protime, data=train.balanced1) 
-model.5 <- qda(Class~Protime+Age, data=train.balanced1) 
-model.6 <- qda(Class~Protime+Bilirubin, data=train.balanced1) 
-model.7 <- qda(Class~Protime+AlkPhosphate, data=train.balanced1) 
-model.8 <- qda(Class~Protime+Sgot, data=train.balanced1) 
-model.9 <- qda(Class~Albumin+Age, data=train.balanced1) 
-
-# model.10 <- qda(Class~Sex+Malaise+Anorexia+SpleenPalpable+Spiders+Bilirubin+Albumin+Protime, data=train.balanced1) 
-
+set.seed(123)
+model.0 <- qda(Class~Age+Bilirubin+AlkPhosphate+Sgot+Albumin+Protime, data=train.num1)
+model.1 <- qda(Class~Albumin+Bilirubin, data=train.num1) 
+model.2 <- qda(Class~Albumin+AlkPhosphate, data=train.num1) 
+model.3 <- qda(Class~Albumin+Sgot, data=train.num1) 
+model.4 <- qda(Class~Albumin+Protime, data=train.num1) 
+model.5 <- qda(Class~Protime+Age, data=train.num1) 
+model.6 <- qda(Class~Protime+Bilirubin, data=train.num1) 
+model.7 <- qda(Class~Protime+AlkPhosphate, data=train.num1) 
+model.8 <- qda(Class~Protime+Sgot, data=train.num1) 
+model.9 <- qda(Class~Albumin+Age, data=train.num1) 
 ```
 
-First we will establish equal costs for classifying into incorrect classe. Hence the threshlod will be equal to 0.5. It can be observed that despite the high accuracy, recall for most of the cases is low.
-
 ```{r echo=FALSE}
-p_thr = 0.5
+p_thr = 0.167
 
 All <- metrices(lda_pred(model.0, test.num1, p_thr), test1$Class)
 Albumin.Bilirubin <- metrices(lda_pred(model.1, test.num1, p_thr), test1$Class)
@@ -905,11 +949,11 @@ Albumin.Age <- metrices(lda_pred(model.9, test.num1, p_thr), test1$Class)
 
 lda_metrices1 <- data.frame(All, Albumin.Age, Albumin.Bilirubin, Albumin.AlkPhosphate, Albumin.Sgot)
 lda_metrices1 <- round(lda_metrices1,2)
-lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices1)
 
 lda_metrices2 <- data.frame(Albumin.Protime, Protime.Age, Protime.Bilirubin, Protime.AlkPhosphate, Protime.Sgot)
 lda_metrices2 <- round(lda_metrices2,2)
-lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices2)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices2)
 
 lda_metrices1 %>% 
     flextable() %>% 
@@ -921,11 +965,72 @@ lda_metrices2 %>%
     theme_box() %>% 
     autofit()
 ```
+
+As can be observed in the tables below, for the first model (Bilirubin-Protime) knn impute is the best. For the other model there aren't any differences between methods.
+To conclude, once again the Bilirubin and Protime attributes are the most efficient in distinguishing classes. The differences between LDA and QDA depends on features selected to build the model. 
+```{r echo=FALSE}
+model.1.1 <- qda(Class~Albumin+Bilirubin, data=train.num1) 
+model.1.2 <- qda(Class~Albumin+Bilirubin, data=train.num2) 
+model.1.3 <- qda(Class~Albumin+Bilirubin, data=train.num3) 
+
+model.5.1 <- qda(Class~Protime+Age, data=train.num1) 
+model.5.2 <- qda(Class~Protime+Age, data=train.num2) 
+model.5.3 <- qda(Class~Protime+Age, data=train.num3) 
+
+model.6.1 <- qda(Class~Protime+Bilirubin, data=train.num1) 
+model.6.2 <- qda(Class~Protime+Bilirubin, data=train.num2) 
+model.6.3 <- qda(Class~Protime+Bilirubin, data=train.num3) 
+```
+```{r, echo=FALSE}
+p_thr = 0.167
+Albumin.Bilirubin.1 <- metrices(lda_pred(model.1.1, test.num1, p_thr), test1$Class)
+Albumin.Bilirubin.2 <- metrices(lda_pred(model.1.2, test.num2, p_thr), test2$Class)
+Albumin.Bilirubin.3 <- metrices(lda_pred(model.1.3, test.num3, p_thr), test3$Class)
+
+Protime.Age.1 <- metrices(lda_pred(model.5.1, test.num1, p_thr), test1$Class)
+Protime.Age.2 <- metrices(lda_pred(model.5.2, test.num2, p_thr), test2$Class)
+Protime.Age.3 <- metrices(lda_pred(model.5.3, test.num3, p_thr), test3$Class)
+
+Protime.Bilirubin.1 <- metrices(lda_pred(model.6.1, test.num1, p_thr), test1$Class)
+qda.pb.1 <- Protime.Bilirubin.1
+Protime.Bilirubin.2 <- metrices(lda_pred(model.6.2, test.num2, p_thr), test2$Class)
+Protime.Bilirubin.3 <- metrices(lda_pred(model.6.3, test.num3, p_thr), test3$Class)
+
+qda_metrices1 <- data.frame(Protime.Bilirubin.1, Protime.Bilirubin.2, Protime.Bilirubin.3)
+qda_metrices1 <- round(qda_metrices1,2)
+qda_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),qda_metrices1)
+
+qda_metrices2 <- data.frame(Albumin.Bilirubin.1, Albumin.Bilirubin.2, Albumin.Bilirubin.3)
+qda_metrices2 <- round(qda_metrices2,2)
+qda_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),qda_metrices2)
+
+qda_metrices3 <- data.frame(Protime.Age.1, Protime.Age.2, Protime.Age.3)
+qda_metrices3 <- round(qda_metrices3,2)
+qda_metrices3 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),qda_metrices3)
+
+qda_metrices1 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+    
+qda_metrices2 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+
+qda_metrices2 %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+```
 ## Logistic regression (LR)
+
+### Method
 
 We need numeric data. In the beginning we use all attributes for different imputing methods.
 
 ```{r, warning=FALSE, message=FALSE}
+set.seed(123)
 model.logit1 <-  glm(Class~.-Class, data=train.balanced1, family=binomial(link="logit"))
 model.logit2 <-  glm(Class~.-Class, data=train.balanced2, family=binomial(link="logit"))
 model.logit3 <-  glm(Class~.-Class, data=train.balanced3, family=binomial(link="logit"))
@@ -934,6 +1039,7 @@ model.logit3 <-  glm(Class~.-Class, data=train.balanced3, family=binomial(link="
 Now, we build the logistic regression model without variables that are unnecessary from the summary and useless from EDA.
 
 ```{r, warning=FALSE, message=FALSE}
+set.seed(123)
 model.logit4 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced1, family=binomial(link="logit"))
 model.logit5 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced2, family=binomial(link="logit"))
 model.logit6 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced3, family=binomial(link="logit"))
@@ -981,7 +1087,7 @@ pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.prob8, classes = class
 pred.prob.plot9 <- data.frame(x = 1:n, probability = pred.prob9, classes = classes)
 ```
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
@@ -1010,7 +1116,7 @@ Let's also plot histograms of predicted probabilities.
 
 Most probabilities for all models are about 0 or 1, what we need.
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
@@ -1061,29 +1167,122 @@ pred.labels9 <- prob.to.labels(probs=pred.prob9, cutoff=0.5)
 real.labels <- test.num1$Class
 ```
 
+### Comparison
+
+In the additional file, we can see all confusion matrices.
+
+```{r, echo=FALSE}
+cm1 <- confusionMatrix(table(pred.labels1, real.labels), positive = "1")
+cm2 <- confusionMatrix(table(pred.labels2, real.labels), positive = "1")
+cm3 <- confusionMatrix(table(pred.labels3, real.labels), positive = "1")
+cm4 <- confusionMatrix(table(pred.labels4, real.labels), positive = "1")
+cm5 <- confusionMatrix(table(pred.labels5, real.labels), positive = "1")
+cm6 <- confusionMatrix(table(pred.labels6, real.labels), positive = "1")
+cm7 <- confusionMatrix(table(pred.labels7, real.labels), positive = "1")
+cm8 <- confusionMatrix(table(pred.labels8, real.labels), positive = "1")
+cm9 <- confusionMatrix(table(pred.labels9, real.labels), positive = "1")
+```
+
+```{r, echo=FALSE}
+logit1 <- confusion.matrix.results(cm1)
+logit2 <- confusion.matrix.results(cm2)
+logit3 <- confusion.matrix.results(cm3)
+logit4 <- confusion.matrix.results(cm4)
+logit5 <- confusion.matrix.results(cm5)
+logit6 <- confusion.matrix.results(cm6)
+logit7 <- confusion.matrix.results(cm7)
+logit8 <- confusion.matrix.results(cm8)
+logit9 <- confusion.matrix.results(cm9)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+df1.num <- to_numeric1(df1[-21])
+df2.num <- to_numeric1(df2[-21])
+df5.num <- to_numeric1(df5[-21])
+
+er1 <- errorest(Class~.-Class, data=df1.num, model=glm, estimator="cv")
+er2 <- errorest(Class~.-Class, data=df2.num, model=glm, estimator="cv")
+er3 <- errorest(Class~.-Class, data=df5.num, model=glm, estimator="cv")
+
+er4 <- errorest(Class~.-Class-Age-Anorexia-Bilirubin, data=df1.num, model=glm, estimator="cv")
+er5 <- errorest(Class~.-Class-Age-Anorexia-Bilirubin, data=df2.num, model=glm, estimator="cv")
+er6 <- errorest(Class~.-Class-Age-Anorexia-Bilirubin, data=df5.num, model=glm, estimator="cv")
+
+er7 <- errorest(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=df1.num, model=glm, estimator="cv")
+er8 <- errorest(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=df2.num, model=glm, estimator="cv")
+er9 <- errorest(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=df5.num, model=glm, estimator="cv")
+```
+
+```{r, echo=FALSE}
+logit1 <- append(logit1, er1$error)
+logit2 <- append(logit2, er2$error)
+logit3 <- append(logit3, er3$error)
+logit4 <- append(logit4, er4$error)
+logit5 <- append(logit5, er5$error)
+logit6 <- append(logit6, er6$error)
+logit7 <- append(logit7, er7$error)
+logit8 <- append(logit8, er8$error)
+logit9 <- append(logit9, er9$error)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+er1 <- errorest(Class~.-Class, data=df1.num, model=glm, estimator="boot")
+er2 <- errorest(Class~.-Class, data=df2.num, model=glm, estimator="boot")
+er3 <- errorest(Class~.-Class, data=df5.num, model=glm, estimator="boot")
+
+er4 <- errorest(Class~.-Class-Age-Anorexia-Bilirubin, data=df1.num, model=glm, estimator="boot")
+er5 <- errorest(Class~.-Class-Age-Anorexia-Bilirubin, data=df2.num, model=glm, estimator="boot")
+er6 <- errorest(Class~.-Class-Age-Anorexia-Bilirubin, data=df5.num, model=glm, estimator="boot")
+
+er7 <- errorest(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=df1.num, model=glm, estimator="boot")
+er8 <- errorest(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=df2.num, model=glm, estimator="boot")
+er9 <- errorest(Class~.-Class-Age-Steroid-AlkPhosphate-Sgot, data=df5.num, model=glm, estimator="boot")
+```
+
+```{r, echo=FALSE}
+logit1 <- append(logit1, er1$error)
+logit2 <- append(logit2, er2$error)
+logit3 <- append(logit3, er3$error)
+logit4 <- append(logit4, er4$error)
+logit5 <- append(logit5, er5$error)
+logit6 <- append(logit6, er6$error)
+logit7 <- append(logit7, er7$error)
+logit8 <- append(logit8, er8$error)
+logit9 <- append(logit9, er9$error)
+```
+
+```{r, echo=FALSE}
+logit_statistics <- data.frame(logit1, logit2, logit3, logit4, logit5, logit6, logit7, logit8, logit9)
+logit_statistics <- round(logit_statistics,2)
+logit_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), logit_statistics)
+```
 
 ```{r}
-logit1 <- metrices(pred.labels1, real.labels)
-logit2 <- metrices(pred.labels2, real.labels)
-logit3 <- metrices(pred.labels3, real.labels)
-
-logit4 <- metrices(pred.labels4, real.labels)
-logit5 <- metrices(pred.labels5, real.labels)
-logit6 <- metrices(pred.labels6, real.labels)
-
-logit7 <- metrices(pred.labels7, real.labels)
-logit8 <- metrices(pred.labels8, real.labels)
-logit9 <- metrices(pred.labels9, real.labels)
-
-logit_metrices <- data.frame(logit1, logit2, logit3, logit4, logit5, logit6, logit7, logit8, logit9)
-logit_metrices <- round(logit_metrices,2)
-logit_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), logit_metrices)
-
-logit_metrices %>% 
-    flextable() %>% 
-    theme_box() %>% 
+logit_statistics %>%
+    flextable() %>%
+    theme_box() %>%
     autofit()
 ```
+
+So, the best Logistic regression model when comparing the statistics:
+
+  * Accuracy: 4, 6
+
+  * Kappa: 4, 6
+
+  * Sensitivity: 2-9
+
+  * Specificity: 4, 6
+
+  * F1: 4, 6
+
+  * Balanced Accuracy: 4, 6
+
+  * 10-fold CV: 8, 9
+
+  * Bootstrap: 7, 8
+
+To sum up, the best Logistic regression model is the **4th** one: model without useless variables and knn imputing method.
 
 ## KNN 
 
@@ -1128,13 +1327,16 @@ colnames(knn_metrices) <- c("All","Albumin.Ascites", "Albumin.Protime", "Albumin
 "Ascites.Malaise","Ascites.Bilirubin","Protime.Malaise", "Protime.Bilirubin", "Malaise.Bilirubin")
 
 knn_metrices <- round(knn_metrices,2)
-knn_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure", "k"),knn_metrices)
+knn_metrices <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision", "k"),knn_metrices)
 
-knn_metrices %>% 
+knn_metrices[1:6] %>% 
     flextable() %>% 
     theme_box() %>% 
     autofit()
-
+knn_metrices[7:11] %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
 ```
 ```{r}
 set.seed(123) 
@@ -1148,13 +1350,17 @@ for (i in 1:10) {
 ```
 ```{r echo=FALSE}
 knn_metrices <- data.frame(all_metrics)
-colnames(knn_metrices) <- c("All","Albumin.Ascites.Protime", "Albumin.Ascites.Malaise", "Albumin.Ascites.Bilirubin", "Albumin.Protime.Malaise", "Albumin.Protime.Bilirubin",
-"Albumin.Malaise.Bilirubin","Ascites.Protime.Malaise","Ascites.Protime.Bilirubin", "Ascites.Malaise.Bilirubin", "Protime.Malaise.Bilirubin")
+colnames(knn_metrices) <- c("All","Albumin.Ascites.Protime", "Albumin.Ascites.Malaise", "Albumin.Ascites.Bilirubin", "Albumin.Protime.Malaise", "Albumin.Protime.Bilirubin","Albumin.Malaise.Bilirubin","Ascites.Protime.Malaise","Ascites.Protime.Bilirubin", "Ascites.Malaise.Bilirubin", "Protime.Malaise.Bilirubin")
 
 knn_metrices <- round(knn_metrices,2)
-knn_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure", "k"),knn_metrices)
+knn_metrices <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision", "k"),knn_metrices)
 
-knn_metrices %>% 
+
+knn_metrices[1:6] %>% 
+    flextable() %>% 
+    theme_box() %>% 
+    autofit()
+knn_metrices[7:11] %>% 
     flextable() %>% 
     theme_box() %>% 
     autofit()
@@ -1184,7 +1390,7 @@ knn.model <- train(train.balanced1.std[c(7,13,19)], as.factor(train.balanced1$Cl
 ggplot(knn.model)+ geom_vline(xintercept = knn.model$bestTune[[1]], col="red", lty=2)
 ```
 
-We will finally compare different imputation methods. 
+We will finally compare different imputation methods. Protime-Bilirubin for knn imputation method is again the best model.
 
 ```{r echo=FALSE}
 dataTransform <- preProcess(train.balanced2, method=c("center", "scale"))
@@ -1218,6 +1424,7 @@ model.2.3 <- knn(train.balanced3.std[c(7,13,19)], test.num3.std[c(7,13,19)], tra
 ```
 ```{r, echo=FALSE}
 Protime.Bilirubin.1 <- metrices(model.1.1, test1$Class)
+knn.pb.1 <- Protime.Bilirubin.1
 Protime.Bilirubin.2 <- metrices(model.1.2, test2$Class)
 Protime.Bilirubin.3 <- metrices(model.1.3, test3$Class)
 
@@ -1227,11 +1434,11 @@ Ascites.Protime.Malaise.3 <- metrices(model.2.3, test3$Class)
 
 lda_metrices1 <- data.frame(Protime.Bilirubin.1, Protime.Bilirubin.2, Protime.Bilirubin.3)
 lda_metrices1 <- round(lda_metrices1,2)
-lda_metrices1 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metrices1)
+lda_metrices1 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices1)
 
 lda_metrices2 <- data.frame(Ascites.Protime.Malaise.1, Ascites.Protime.Malaise.2, Ascites.Protime.Malaise.3)
 lda_metrices2 <- round(lda_metrices2,2)
-lda_metrices2 <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"),lda_metricesa)
+lda_metrices2 <- cbind(metric=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "Precision"),lda_metrices2)
 
 lda_metrices1 %>% 
     flextable() %>% 
@@ -1246,6 +1453,7 @@ lda_metrices2 %>%
 
 ## Random tree
 
+### Method
 We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
 
 ```{r}
@@ -1260,7 +1468,9 @@ to_categorical <- function(data){
   data[, categorical] <-  lapply(data[, categorical], as.factor)
   return(data)
 }
+```
 
+```{r, echo=FALSE}
 train1 <- to_categorical(train1)
 train2 <- to_categorical(train2)
 train3 <- to_categorical(train3)
@@ -1276,7 +1486,7 @@ test0 <- to_categorical(test0)
 ```
 
 ```{r}
-set.seed(123) 
+set.seed(123)
 
 full.tree1 <- rpart(mod1, data=train1, control=rpart.control(cp=-1, minsplit=5))
 full.tree2 <- rpart(mod1, data=train2, control=rpart.control(cp=-1, minsplit=5))
@@ -1289,7 +1499,7 @@ full.tree7 <- rpart(mod2, data=train3, control=rpart.control(cp=-1, minsplit=5))
 full.tree8 <- rpart(mod2, data=train0, control=rpart.control(cp=-1, minsplit=5))
 ```
 
-In the additional file, we can see a visualization of all full trees. They are pretty different. 
+In the additional file, we can see a visualization of all full trees. They are pretty different.
 
 Now, we need to choose a complexity parameter (cp). In the additional file, we can see plots and information about misclassification error.
 
@@ -1303,7 +1513,7 @@ cp.opt4 <- 0.041
 cp.opt5 <- 0.083
 cp.opt6 <- 0.083
 cp.opt7 <- 0.166
-cp.opt8 <- 0.062    
+cp.opt8 <- 0.062
 ```
 
 Now, we prune trees.
@@ -1319,7 +1529,7 @@ full.tree7.pruned <- prune(full.tree7, cp = cp.opt7)
 full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
 ```
 
-In the additional file, we can find basic information about the trees. 
+In the additional file, we can find basic information about the trees.
 
 Now, let's visualize all the trees. They are pretty different: from a tree with only 2 splits to a tree with many splits.
 
@@ -1366,7 +1576,7 @@ pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = 
 pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
 ```
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
@@ -1392,7 +1602,7 @@ Let's also plot histograms of predicted probabilities.
 
 There are both good and bad results. There are histograms, where most probabilities are about 0 or 1, what we need. But there are also histograms, where a lot of values are located in the middle between 0 and 1.
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
@@ -1430,29 +1640,122 @@ pred.labels8 <- predict(full.tree8.pruned, newdata=test0, type = "class")
 real.labels <- test1$Class
 ```
 
+### Comparison
+
+```{r, echo=FALSE}
+cm1 <- confusionMatrix(table(pred.labels1, real.labels), positive = "1")
+cm2 <- confusionMatrix(table(pred.labels2, real.labels), positive = "1")
+cm3 <- confusionMatrix(table(pred.labels3, real.labels), positive = "1")
+cm4 <- confusionMatrix(table(pred.labels4, real.labels), positive = "1")
+cm5 <- confusionMatrix(table(pred.labels5, real.labels), positive = "1")
+cm6 <- confusionMatrix(table(pred.labels6, real.labels), positive = "1")
+cm7 <- confusionMatrix(table(pred.labels7, real.labels), positive = "1")
+cm8 <- confusionMatrix(table(pred.labels8, real.labels), positive = "1")
+```
+
+```{r, echo=FALSE}
+tree1 <- confusion.matrix.results(cm1)
+tree2 <- confusion.matrix.results(cm2)
+tree3 <- confusion.matrix.results(cm3)
+tree4 <- confusion.matrix.results(cm4)
+tree5 <- confusion.matrix.results(cm5)
+tree6 <- confusion.matrix.results(cm6)
+tree7 <- confusion.matrix.results(cm7)
+tree8 <- confusion.matrix.results(cm8)
+```
+
+```{r, echo=FALSE}
+df1 <- to_categorical(df1)
+df2 <- to_categorical(df2)
+df5 <- to_categorical(df5)
+df <- to_categorical(df)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+my.pred <- function(object, newdata)  predict(object, newdata=newdata, type="class")
+my.rpart <- function(formula1, data1) rpart(formula=formula1,data=data1, minsplit=5)
+
+er1 <- errorest(mod1, data=df1, model=my.rpart, estimator="cv", predict=my.pred)
+er2 <- errorest(mod1, data=df2, model=my.rpart, estimator="cv", predict=my.pred)
+er3 <- errorest(mod1, data=df5, model=my.rpart, estimator="cv", predict=my.pred)
+er4 <- errorest(mod1, data=df, model=my.rpart, estimator="cv", predict=my.pred)
+
+er5 <- errorest(mod2, data=df1, model=my.rpart, estimator="cv", predict=my.pred)
+er6 <- errorest(mod2, data=df2, model=my.rpart, estimator="cv", predict=my.pred)
+er7 <- errorest(mod2, data=df5, model=my.rpart, estimator="cv", predict=my.pred)
+er8 <- errorest(mod2, data=df, model=my.rpart, estimator="cv", predict=my.pred)
+```
+
+```{r, echo=FALSE}
+tree1 <- append(tree1, er1$error)
+tree2 <- append(tree2, er2$error)
+tree3 <- append(tree3, er3$error)
+tree4 <- append(tree4, er4$error)
+tree5 <- append(tree5, er5$error)
+tree6 <- append(tree6, er6$error)
+tree7 <- append(tree7, er7$error)
+tree8 <- append(tree8, er8$error)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+er1 <- errorest(mod1, data=df1, model=my.rpart, estimator="boot", predict=my.pred)
+er2 <- errorest(mod1, data=df2, model=my.rpart, estimator="boot", predict=my.pred)
+er3 <- errorest(mod1, data=df5, model=my.rpart, estimator="boot", predict=my.pred)
+er4 <- errorest(mod1, data=df, model=my.rpart, estimator="boot", predict=my.pred)
+
+er5 <- errorest(mod2, data=df1, model=my.rpart, estimator="boot", predict=my.pred)
+er6 <- errorest(mod2, data=df2, model=my.rpart, estimator="boot", predict=my.pred)
+er7 <- errorest(mod2, data=df5, model=my.rpart, estimator="boot", predict=my.pred)
+er8 <- errorest(mod2, data=df, model=my.rpart, estimator="boot", predict=my.pred)
+```
+
+```{r, echo=FALSE}
+tree1 <- append(tree1, er1$error)
+tree2 <- append(tree2, er2$error)
+tree3 <- append(tree3, er3$error)
+tree4 <- append(tree4, er4$error)
+tree5 <- append(tree5, er5$error)
+tree6 <- append(tree6, er6$error)
+tree7 <- append(tree7, er7$error)
+tree8 <- append(tree8, er8$error)
+```
+
+```{r, echo=FALSE}
+tree_statistics <- data.frame(tree1, tree2, tree3, tree4, tree5, tree6, tree7, tree8)
+tree_statistics <- round(tree_statistics,2)
+tree_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), tree_statistics)
+```
 
 ```{r}
-tree1 <- metrices(pred.labels1, real.labels)
-tree2 <- metrices(pred.labels2, real.labels)
-tree3 <- metrices(pred.labels3, real.labels)
-tree4 <- metrices(pred.labels4, real.labels)
-
-tree5 <- metrices(pred.labels5, real.labels)
-tree6 <- metrices(pred.labels6, real.labels)
-tree7 <- metrices(pred.labels7, real.labels)
-tree8 <- metrices(pred.labels8, real.labels)
-
-tree_metrices <- data.frame(tree1, tree2, tree3, tree4, tree5, tree6, tree7, tree8)
-tree_metrices <- round(tree_metrices,2)
-tree_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), tree_metrices)
-
-tree_metrices %>% 
-    flextable() %>% 
-    theme_box() %>% 
+tree_statistics %>%
+    flextable() %>%
+    theme_box() %>%
     autofit()
 ```
 
+So, the best Random tree model when comparing the statistics:
+
+  * Accuracy: 5, 6
+
+  * Kappa: 5, 6
+
+  * Sensitivity: 5, 6
+
+  * Specificity: 2, 3, 5, 6, 7
+
+  * F1: 5, 6
+
+  * Balanced Accuracy: 5, 6
+
+  * 10-fold CV: 2 -> 6
+
+  * Bootstrap: 6
+
+To sum up, the best Random tree model is the **6th** one: model without variables that are useless from EDA and bag tree imputing method.
+
 ## Bagging (bootstrap aggregating)
+
+### Method
 
 We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
 
@@ -1464,7 +1767,7 @@ mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 Building random forest for different models and datasets (for different imputation methods and initial with missing values).
 
 ```{r}
-set.seed(123) 
+set.seed(123)
 
 btree1 <- bagging(mod1, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
 btree2 <- bagging(mod1, data=train2, nbagg=150, coob=TRUE, minsplit=2, cp=0)
@@ -1511,7 +1814,7 @@ pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = 
 pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
 ```
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
@@ -1537,7 +1840,7 @@ Let's also plot histograms of predicted probabilities.
 
 As we saw before, the results are not so good: many values are about 0, but also a lot of values are located in the middle between 0 and 1.
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
@@ -1575,29 +1878,112 @@ pred.labels8 <- predict(btree8, newdata=test0, type = "class")
 real.labels <- test1$Class
 ```
 
+### Comparison
+
+```{r, echo=FALSE}
+cm1 <- confusionMatrix(table(pred.labels1, real.labels), positive = "1")
+cm2 <- confusionMatrix(table(pred.labels2, real.labels), positive = "1")
+cm3 <- confusionMatrix(table(pred.labels3, real.labels), positive = "1")
+cm4 <- confusionMatrix(table(pred.labels4, real.labels), positive = "1")
+cm5 <- confusionMatrix(table(pred.labels5, real.labels), positive = "1")
+cm6 <- confusionMatrix(table(pred.labels6, real.labels), positive = "1")
+cm7 <- confusionMatrix(table(pred.labels7, real.labels), positive = "1")
+cm8 <- confusionMatrix(table(pred.labels8, real.labels), positive = "1")
+```
+
+```{r, echo=FALSE}
+btree1 <- confusion.matrix.results(cm1)
+btree2 <- confusion.matrix.results(cm2)
+btree3 <- confusion.matrix.results(cm3)
+btree4 <- confusion.matrix.results(cm4)
+btree5 <- confusion.matrix.results(cm5)
+btree6 <- confusion.matrix.results(cm6)
+btree7 <- confusion.matrix.results(cm7)
+btree8 <- confusion.matrix.results(cm8)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+er1 <- errorest(mod1, data=df1, model=bagging, estimator="cv")
+er2 <- errorest(mod1, data=df2, model=bagging, estimator="cv")
+er3 <- errorest(mod1, data=df5, model=bagging, estimator="cv")
+er4 <- errorest(mod1, data=df, model=bagging, estimator="cv")
+
+er5 <- errorest(mod2, data=df1, model=bagging, estimator="cv")
+er6 <- errorest(mod2, data=df2, model=bagging, estimator="cv")
+er7 <- errorest(mod2, data=df5, model=bagging, estimator="cv")
+er8 <- errorest(mod2, data=df, model=bagging, estimator="cv")
+```
+
+```{r, echo=FALSE}
+btree1 <- append(btree1, er1$error)
+btree2 <- append(btree2, er2$error)
+btree3 <- append(btree3, er3$error)
+btree4 <- append(btree4, er4$error)
+btree5 <- append(btree5, er5$error)
+btree6 <- append(btree6, er6$error)
+btree7 <- append(btree7, er7$error)
+btree8 <- append(btree8, er8$error)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+er1 <- errorest(mod1, data=df1, model=bagging, estimator="boot")
+er2 <- errorest(mod1, data=df2, model=bagging, estimator="boot")
+er3 <- errorest(mod1, data=df5, model=bagging, estimator="boot")
+er4 <- errorest(mod1, data=df, model=bagging, estimator="boot")
+
+er5 <- errorest(mod2, data=df1, model=bagging, estimator="boot")
+er6 <- errorest(mod2, data=df2, model=bagging, estimator="boot")
+er7 <- errorest(mod2, data=df5, model=bagging, estimator="boot")
+er8 <- errorest(mod2, data=df, model=bagging, estimator="boot")
+```
+
+```{r, echo=FALSE}
+btree1 <- append(btree1, er1$error)
+btree2 <- append(btree2, er2$error)
+btree3 <- append(btree3, er3$error)
+btree4 <- append(btree4, er4$error)
+btree5 <- append(btree5, er5$error)
+btree6 <- append(btree6, er6$error)
+btree7 <- append(btree7, er7$error)
+btree8 <- append(btree8, er8$error)
+```
+
+```{r, echo=FALSE}
+btree_statistics <- data.frame(btree1, btree2, btree3, btree4, btree5, btree6, btree7, btree8)
+btree_statistics <- round(btree_statistics,2)
+btree_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), btree_statistics)
+```
 
 ```{r}
-btree1 <- metrices(pred.labels1, real.labels)
-btree2 <- metrices(pred.labels2, real.labels)
-btree3 <- metrices(pred.labels3, real.labels)
-btree4 <- metrices(pred.labels4, real.labels)
-
-btree5 <- metrices(pred.labels5, real.labels)
-btree6 <- metrices(pred.labels6, real.labels)
-btree7 <- metrices(pred.labels7, real.labels)
-btree8 <- metrices(pred.labels8, real.labels)
-
-btree_metrices <- data.frame(btree1, btree2, btree3, btree4, btree5, btree6, btree7, btree8)
-btree_metrices <- round(btree_metrices,2)
-btree_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), btree_metrices)
-
-btree_metrices %>% 
-    flextable() %>% 
-    theme_box() %>% 
+btree_statistics %>%
+    flextable() %>%
+    theme_box() %>%
     autofit()
 ```
 
+So, the best Bagging model when comparing the statistics:
+
+  * Accuracy: 2, 4, 6, 7
+
+  * Kappa: 2, 4, 6, 7
+
+  * Sensitivity: 2, 4, 6, 7 
+
+  * Specificity: all
+
+  * F1: 2, 4, 6, 7
+
+  * Balanced Accuracy: 2, 4, 6, 7
+
+  * 10-fold CV: 6
+
+  * Bootstrap: 6
+
+To sum up, the best Bagging model is the **6th** one: model without variables that are useless from EDA and bag tree imputing method
+
 ## Boosting
+
+### Method
 
 We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
 
@@ -1609,7 +1995,7 @@ mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 Building random forest for different models and datasets (for different imputation methods).
 
 ```{r}
-set.seed(123) 
+set.seed(123)
 
 boost1 <- ada(mod1, data=train1, iter = 10)
 boost2 <- ada(mod1, data=train2, iter = 10)
@@ -1656,7 +2042,7 @@ pred.prob.plot7 <- data.frame(x = 1:n, probability = pred.probs7[,2], classes = 
 pred.prob.plot8 <- data.frame(x = 1:n, probability = pred.probs8[,2], classes = classes)
 ```
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
@@ -1682,7 +2068,7 @@ Let's also plot histograms of predicted probabilities.
 
 As we saw before, the results are not so good: many values are about 0, but also a lot of values are located in the middle between 0 and 1.
 
-```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 5, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
@@ -1721,29 +2107,114 @@ real.labels <- test1$Class
 ```
 
 
+### Comparison
+
+```{r, echo=FALSE}
+cm1 <- confusionMatrix(table(pred.labels1, real.labels), positive = "1")
+cm2 <- confusionMatrix(table(pred.labels2, real.labels), positive = "1")
+cm3 <- confusionMatrix(table(pred.labels3, real.labels), positive = "1")
+cm4 <- confusionMatrix(table(pred.labels4, real.labels), positive = "1")
+cm5 <- confusionMatrix(table(pred.labels5, real.labels), positive = "1")
+cm6 <- confusionMatrix(table(pred.labels6, real.labels), positive = "1")
+cm7 <- confusionMatrix(table(pred.labels7, real.labels), positive = "1")
+cm8 <- confusionMatrix(table(pred.labels8, real.labels), positive = "1")
+```
+
+```{r, echo=FALSE}
+boost.1 <- confusion.matrix.results(cm1)
+boost.2 <- confusion.matrix.results(cm2)
+boost.3 <- confusion.matrix.results(cm3)
+boost.4 <- confusion.matrix.results(cm4)
+boost.5 <- confusion.matrix.results(cm5)
+boost.6 <- confusion.matrix.results(cm6)
+boost.7 <- confusion.matrix.results(cm7)
+boost.8 <- confusion.matrix.results(cm8)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+my.ada <- function(formula1, data1, nbagg1, minsplit1) ada(formula=formula1, data=data1, iter=10)
+
+er1 <- errorest(mod1, data=df1, model=my.ada, estimator="cv")
+er2 <- errorest(mod1, data=df2, model=my.ada, estimator="cv")
+er3 <- errorest(mod1, data=df5, model=my.ada, estimator="cv")
+er4 <- errorest(mod1, data=df, model=my.ada, estimator="cv")
+
+er5 <- errorest(mod2, data=df1, model=my.ada, estimator="cv")
+er6 <- errorest(mod2, data=df2, model=my.ada, estimator="cv")
+er7 <- errorest(mod2, data=df5, model=my.ada, estimator="cv")
+er8 <- errorest(mod2, data=df, model=my.ada, estimator="cv")
+```
+
+```{r, echo=FALSE}
+boost.1 <- append(boost.1, er1$error)
+boost.2 <- append(boost.2, er2$error)
+boost.3 <- append(boost.3, er3$error)
+boost.4 <- append(boost.4, er4$error)
+boost.5 <- append(boost.5, er5$error)
+boost.6 <- append(boost.6, er6$error)
+boost.7 <- append(boost.7, er7$error)
+boost.8 <- append(boost.8, er8$error)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+er1 <- errorest(mod1, data=df1, model=my.ada, estimator="boot")
+er2 <- errorest(mod1, data=df2, model=my.ada, estimator="boot")
+er3 <- errorest(mod1, data=df5, model=my.ada, estimator="boot")
+er4 <- errorest(mod1, data=df, model=my.ada, estimator="boot")
+
+er5 <- errorest(mod2, data=df1, model=my.ada, estimator="boot")
+er6 <- errorest(mod2, data=df2, model=my.ada, estimator="boot")
+er7 <- errorest(mod2, data=df5, model=my.ada, estimator="boot")
+er8 <- errorest(mod2, data=df, model=my.ada, estimator="boot")
+```
+
+```{r, echo=FALSE}
+boost.1 <- append(boost.1, er1$error)
+boost.2 <- append(boost.2, er2$error)
+boost.3 <- append(boost.3, er3$error)
+boost.4 <- append(boost.4, er4$error)
+boost.5 <- append(boost.5, er5$error)
+boost.6 <- append(boost.6, er6$error)
+boost.7 <- append(boost.7, er7$error)
+boost.8 <- append(boost.8, er8$error)
+```
+
+```{r, echo=FALSE}
+boost_statistics <- data.frame(boost.1, boost.2, boost.3, boost.4, boost.5, boost.6, boost.7, boost.8)
+boost_statistics <- round(boost_statistics,2)
+boost_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), boost_statistics)
+```
+
 ```{r}
-boost.1 <- metrices(pred.labels1, real.labels)
-boost.2 <- metrices(pred.labels2, real.labels)
-boost.3 <- metrices(pred.labels3, real.labels)
-boost.4 <- metrices(pred.labels4, real.labels)
-
-boost.5 <- metrices(pred.labels5, real.labels)
-boost.6 <- metrices(pred.labels6, real.labels)
-boost.7 <- metrices(pred.labels7, real.labels)
-boost.8 <- metrices(pred.labels8, real.labels)
-
-boost_metrices <- data.frame(boost.1, boost.2, boost.3, boost.4, boost.5, boost.6, boost.7, boost.8)
-boost_metrices <- round(boost_metrices,2)
-boost_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), boost_metrices)
-
-boost_metrices %>% 
-    flextable() %>% 
-    theme_box() %>% 
+boost_statistics %>%
+    flextable() %>%
+    theme_box() %>%
     autofit()
 ```
 
+So, the best Boosting model when comparing the statistics:
+
+  * Accuracy: 4, 6
+
+  * Kappa: 4 -> 6
+
+  * Sensitivity: 4 -> 1, 2, 5, 6, 7, 8
+
+  * Specificity: 3, 6 -> 1, 2, 4, 5
+
+  * F1: 4 -> 6
+
+  * Balanced Accuracy: 4 -> 6
+
+  * 10-fold CV: 2, 6
+
+  * Bootstrap: 2 -> 6
+
+To sum up, the best Boosting model is the **6th** one: model without variables that are useless from EDA and bag tree imputing method.
 
 ## Random forest
+
+### Method
 
 We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA. Also we need number of features.
 
@@ -1831,7 +2302,7 @@ pred.prob.plot11 <- data.frame(x = 1:n, probability = pred.probs11[,2], classes 
 pred.prob.plot12 <- data.frame(x = 1:n, probability = pred.probs12[,2], classes = classes)
 ```
 
-```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(data = pred.prob.plot1, aes(x = x, y = probability)) +
     geom_point(aes(color = classes))
 p2 <- ggplot(data = pred.prob.plot2, aes(x = x, y = probability)) +
@@ -1867,7 +2338,7 @@ Let's also plot histograms of predicted probabilities.
 
 As we saw before, the results are not so good: many values are about 0, but also a lot of values are located in the middle between 0 and 1.
 
-```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 p1 <- ggplot(pred.prob.plot1, aes(x = probability)) +
    geom_histogram(color='#f8766d', fill='#f8766d', bins = 5)
 p2 <- ggplot(pred.prob.plot2, aes(x = probability)) +
@@ -1922,51 +2393,181 @@ real.labels <- test1$Class
 ```
 
 
+### Comparison
+
+```{r, echo=FALSE}
+cm1 <- confusionMatrix(table(pred.labels1, real.labels), positive = "1")
+cm2 <- confusionMatrix(table(pred.labels2, real.labels), positive = "1")
+cm3 <- confusionMatrix(table(pred.labels3, real.labels), positive = "1")
+cm4 <- confusionMatrix(table(pred.labels4, real.labels), positive = "1")
+cm5 <- confusionMatrix(table(pred.labels5, real.labels), positive = "1")
+cm6 <- confusionMatrix(table(pred.labels6, real.labels), positive = "1")
+cm7 <- confusionMatrix(table(pred.labels7, real.labels), positive = "1")
+cm8 <- confusionMatrix(table(pred.labels8, real.labels), positive = "1")
+cm9 <- confusionMatrix(table(pred.labels9, real.labels), positive = "1")
+cm10 <- confusionMatrix(table(pred.labels10, real.labels), positive = "1")
+cm11 <- confusionMatrix(table(pred.labels11, real.labels), positive = "1")
+cm12 <- confusionMatrix(table(pred.labels12, real.labels), positive = "1")
+```
+
+```{r, echo=FALSE}
+rf.1 <- confusion.matrix.results(cm1)
+rf.2 <- confusion.matrix.results(cm2)
+rf.3 <- confusion.matrix.results(cm3)
+rf.4 <- confusion.matrix.results(cm4)
+rf.5 <- confusion.matrix.results(cm5)
+rf.6 <- confusion.matrix.results(cm6)
+rf.7 <- confusion.matrix.results(cm7)
+rf.8 <- confusion.matrix.results(cm8)
+rf.9 <- confusion.matrix.results(cm9)
+rf.10 <- confusion.matrix.results(cm10)
+rf.11 <- confusion.matrix.results(cm11)
+rf.12 <- confusion.matrix.results(cm12)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+my.randomForest1 <- function(formula1, data1) randomForest(formula=formula1, data=data1, ntree = 500, mtry = 19)
+my.randomForest2 <- function(formula1, data1) randomForest(formula=formula1, data=data1, ntree = 500, mtry = sqrt(19))
+my.randomForest3 <- function(formula1, data1) randomForest(formula=formula1, data=data1, ntree = 500, mtry = 15)
+my.randomForest4 <- function(formula1, data1) randomForest(formula=formula1, data=data1, ntree = 500, mtry = sqrt(15))
+
+er1 <- errorest(mod1, data=df1, model=my.randomForest1, estimator="cv")
+er2 <- errorest(mod1, data=df2, model=my.randomForest1, estimator="cv")
+er3 <- errorest(mod1, data=df5, model=my.randomForest1, estimator="cv")
+
+er4 <- errorest(mod1, data=df1, model=my.randomForest2, estimator="cv")
+er5 <- errorest(mod1, data=df1, model=my.randomForest2, estimator="cv")
+er6 <- errorest(mod1, data=df5, model=my.randomForest2, estimator="cv")
+
+er7 <- errorest(mod2, data=df1, model=my.randomForest3, estimator="cv")
+er8 <- errorest(mod2, data=df2, model=my.randomForest3, estimator="cv")
+er9 <- errorest(mod2, data=df5, model=my.randomForest3, estimator="cv")
+
+er10 <- errorest(mod2, data=df1, model=my.randomForest4, estimator="cv")
+er11 <- errorest(mod2, data=df2, model=my.randomForest4, estimator="cv")
+er12 <- errorest(mod2, data=df5, model=my.randomForest4, estimator="cv")
+```
+
+```{r, echo=FALSE}
+rf.1 <- append(rf.1, er1$error)
+rf.2 <- append(rf.2, er2$error)
+rf.3 <- append(rf.3, er3$error)
+rf.4 <- append(rf.4, er4$error)
+rf.5 <- append(rf.5, er5$error)
+rf.6 <- append(rf.6, er6$error)
+rf.7 <- append(rf.7, er7$error)
+rf.8 <- append(rf.8, er8$error)
+rf.9 <- append(rf.9, er9$error)
+rf.10 <- append(rf.10, er10$error)
+rf.11 <- append(rf.11, er11$error)
+rf.12 <- append(rf.12, er12$error)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+er1 <- errorest(mod1, data=df1, model=my.randomForest1, estimator="boot")
+er2 <- errorest(mod1, data=df2, model=my.randomForest1, estimator="boot")
+er3 <- errorest(mod1, data=df5, model=my.randomForest1, estimator="boot")
+
+er4 <- errorest(mod1, data=df1, model=my.randomForest2, estimator="boot")
+er5 <- errorest(mod1, data=df1, model=my.randomForest2, estimator="boot")
+er6 <- errorest(mod1, data=df5, model=my.randomForest2, estimator="boot")
+
+er7 <- errorest(mod2, data=df1, model=my.randomForest3, estimator="boot")
+er8 <- errorest(mod2, data=df2, model=my.randomForest3, estimator="boot")
+er9 <- errorest(mod2, data=df5, model=my.randomForest3, estimator="boot")
+
+er10 <- errorest(mod2, data=df1, model=my.randomForest4, estimator="boot")
+er11 <- errorest(mod2, data=df2, model=my.randomForest4, estimator="boot")
+er12 <- errorest(mod2, data=df5, model=my.randomForest4, estimator="boot")
+```
+
+```{r, echo=FALSE}
+rf.1 <- append(rf.1, er1$error)
+rf.2 <- append(rf.2, er2$error)
+rf.3 <- append(rf.3, er3$error)
+rf.4 <- append(rf.4, er4$error)
+rf.5 <- append(rf.5, er5$error)
+rf.6 <- append(rf.6, er6$error)
+rf.7 <- append(rf.7, er7$error)
+rf.8 <- append(rf.8, er8$error)
+rf.9 <- append(rf.9, er9$error)
+rf.10 <- append(rf.10, er10$error)
+rf.11 <- append(rf.11, er11$error)
+rf.12 <- append(rf.12, er12$error)
+```
+
+```{r, echo=FALSE}
+rf_statistics <- data.frame(rf.1, rf.2, rf.3, rf.4, rf.5, rf.6, rf.7, rf.8, rf.9, rf.10, rf.11, rf.12)
+rf_statistics <- round(rf_statistics,2)
+rf_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), rf_statistics)
+```
+
 ```{r}
-rf.1 <- metrices(pred.labels1, real.labels)
-rf.2 <- metrices(pred.labels2, real.labels)
-rf.3 <- metrices(pred.labels3, real.labels)
-
-rf.4 <- metrices(pred.labels4, real.labels)
-rf.5 <- metrices(pred.labels5, real.labels)
-rf.6 <- metrices(pred.labels6, real.labels)
-
-rf.7 <- metrices(pred.labels7, real.labels)
-rf.8 <- metrices(pred.labels8, real.labels)
-rf.9 <- metrices(pred.labels9, real.labels)
-
-rf.10 <- metrices(pred.labels10, real.labels)
-rf.11 <- metrices(pred.labels11, real.labels)
-rf.12 <- metrices(pred.labels12, real.labels)
-
-rf_metrices <- data.frame(rf.1, rf.2, rf.3, rf.4, rf.5, rf.6, rf.7, rf.8, rf.9, rf.10, rf.11, rf.12)
-rf_metrices <- round(rf_metrices,2)
-rf_metrices <- cbind(metric=c("Accuracy", "Recall", "Precision", "F-measure"), rf_metrices)
-
-rf_metrices %>% 
-    flextable() %>% 
-    theme_box() %>% 
+rf_statistics %>%
+    flextable() %>%
+    theme_box() %>%
     autofit()
 ```
 
-<!-- ## Comparison of accuracy (10-fold Cross-Validation scheme) -->
-<!-- ###################################################################### -->
+So, the best Random forest model when comparing the statistics:
 
-<!-- mypredict.rpart <- function(object, newdata)  predict(object, newdata=newdata, type="class") -->
+  * Accuracy: 10
 
-<!-- (error.tree         <- (errorest(Type~., data=Glass, model=rpart, predict=mypredict.rpart))) -->
-<!-- (error.bagging      <- (errorest(Type~., data=Glass, model=bagging))) -->
-<!-- (error.randomForest <- (errorest(Type~., data=Glass, model=randomForest))) -->
+  * Kappa: 10
 
-<!-- ### Method -->
-<!-- ### Confusion matrix -->
-<!-- ### Cross-Validation (CV)  -->
-<!-- #### k-fold cross-validation -->
-<!-- #### leave-one-out -->
-<!-- ### Bootstrap-based methods -->
-<!-- #### leave-one-out bootstrap, -->
-<!-- #### .632 estimator, -->
-<!-- #### .632+ estimator.  -->
-<!-- ###	ROC-curve -->
+  * Sensitivity: 10
 
+  * Specificity: 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12
+
+  * F1: 10
+
+  * Balanced Accuracy: 10
+
+  * 10-fold CV: 11 -> 2, 10
+  
+  * Bootstrap: 11 -> 10
+
+To sum up, the best Random forest model is the **10th** one: model without variables that are useless from EDA, knn imputing method, and parameter mtry=sqrt(p).
+
+## Conclusions
+
+The best models by methods:
+
+```{r, echo=FALSE}
+all_statistics <- data.frame(append(lr.imp.1[-7],c(NA,NA)), append(lda.pb.1[-7],c(NA,NA)),append(qda.pb.1[-7],c(NA,NA)), logit4, append(knn.pb.1[-7],c(NA,NA)), tree6, btree6, boost.6, rf.10)
+all_statistics <- round(all_statistics,2)
+all_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), all_statistics)
+colnames(all_statistics) <- c("metric","Linear regression","LDA","QDA","Logistic regression","KNN","Random Tree", "Bagging Tree", "Boosted Tree", "Random Forest")
+```
+
+```{r}
+all_statistics[1:5] %>%
+    flextable() %>%
+    theme_box() %>%
+    autofit()
+all_statistics[6:10] %>%
+    flextable() %>%
+    theme_box() %>%
+    autofit()
+```
+
+So, the best model when comparing the statistics:
+
+  * Accuracy: Random forest
+
+  * Kappa: Random forest
+
+  * Sensitivity: KNN, LDA
+
+  * Specificity: Random tree, Bagging, Boosting, Random forest
+
+  * F1: Random forest
+
+  * Balanced Accuracy: Random forest
+
+  * 10-fold CV: Boosting, Random forest
+  
+  * Bootstrap: Random forest
+
+To sum up, the best model is **Random forest** model without variables that are useless from EDA, knn imputing method, and parameter mtry=sqrt(p).
 
