@@ -1,0 +1,148 @@
+---
+title: "Hepatisis data analysis"
+output:
+  pdf_document: 
+    number_sections: yes
+  html_document:
+    number_sections: yes
+---
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(dplyr)
+library(caret)
+library(MASS)
+library(cluster)
+```
+
+# Introduction
+
+As we mentioned before, we have a lot of missing values, and we should impute them. We found that the knn imputing method gave better results during the last part, so we will use it now. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+df <- read.table("hepatitis.data", sep = ",")
+colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","LiverBig","LiverFirm","SpleenPalpable","Spiders","Ascites","Varices","Bilirubin","AlkPhosphate","Sgot","Albumin","Protime","Histology") # nolint
+
+df[df == "?"] <- NA
+
+df <- mutate_all(df, function(x) as.numeric(as.character(x)))
+categorical <- c(1, 3:14, 20)
+df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
+df[, categorical] <-  lapply(df[, categorical], as.factor)
+
+set.seed(123)
+df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
+data_transform <- preProcess(df.new, method = "knnImpute")
+df1 <- predict(data_transform, df.new)
+
+unstandarize <- function(data){
+  for (i in 1:20) {
+    column <- df.new[, i]
+    if (i %in% c(15, 18)) {
+      data[, i] <- data[, i] * sd(na.omit(column)) + mean(na.omit(column))
+    } else {
+      data[, i] <- round(data[, i] * sd(na.omit(column)) + mean(na.omit(column)))
+    }
+  }
+  return(data)
+}
+
+df1.standarized <- df1
+df1 <- unstandarize(df1)
+```
+
+# Cluster analysis 
+
+## K-means (M)
+
+## PAM (M)
+
+## AGNES (I)
+
+## DIANA (I)
+
+## Fuzzy C-means (M)
+
+## DBSCAN (I)
+
+
+#	Dimension reduction method
+
+As we have both numerical and categorical attributes, we can not use PCA (Principal Component Analysis) method. We decided to use MDS (MultiDimensional Scaling). 
+
+## MDS (M)
+We use standardized data. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results = FALSE}
+# Remove unnecessary features
+df.mds <- subset(df1, col=-c("Class"))
+
+# Derive dissimilarities between objects
+dissimilarities <- daisy(df.mds, stand = T)
+dis.matrix <- as.matrix(dissimilarities)
+```
+
+Let us look at the scree plot.
+```{r, echo=FALSE, results=FALSE}
+d.max <- 6
+
+scree.plot <- function(d, k) {
+    stresses <- sammon(d, k = k)$stress
+    for(i in rev(seq(k-1)))  
+        stresses <- append(stresses, sammon(d, k = i)$stress)
+    plot(seq(k),rev(stresses), type="b", xaxp=c(1,k, k-1), ylab="Stress", xlab="Number of dimensions")
+}
+
+scree.plot(dissimilarities, k = d.max <- 6)
+```
+
+The scree plot shows a clear elbow at dimension = 2, which suggests that a 2D solution should be adequate. Now we check out the Shepard diagram:
+
+```{r, echo=FALSE, results=FALSE}
+stress.vec <- numeric(d.max)
+
+par(mfrow=c(3,2))
+
+for (d in 1:d.max)
+{
+  mds.k <- sammon(dis.matrix, k = d)
+  STRESS <- mds.k$stress
+
+  stress.vec[d] <- STRESS
+  
+  # Shepard diagram
+  shep <- Shepard(dissimilarities, mds.k$points, p=d)
+  plot(shep, pch=".", main=paste0("Shepard diagram (d=",d,")"),
+       cex=0.5, xlab="original distance",  ylab="distance after MDS mapping")
+  lines(shep$x, shep$yf, type = "S", col="red", lty=2)
+  grid()
+  legend(x="topleft",legend=paste("STRESS = ",signif(STRESS,3)), bg="azure2")
+}
+```
+
+The plot for d = 2 shows not so big amount of spread around the fitted function, which also indicates a good fit of the 2D solution.
+
+```{r, echo=FALSE, results=FALSE}
+df.mds <- sammon(dis.matrix, k = 2)$points
+```
+
+```{r, echo=FALSE}
+plot(df.mds[,1], df.mds[,2], col = factor(df1$Class), pch=16)
+# text(mds.results[,1], mds.results[,2], car.names, col="brown",cex=.8)
+```
+
+So, we will use MDS for 2 dimensions. The classes are separated but also overlap, so in the future we may have a problem with classification.
+
+```{r, echo=FALSE, results=FALSE}
+df.mds <- data.frame(df.mds)
+df.mds$class <- df1$Class
+df.mds
+```
+
+## Classification (I)
+
+## Clustering (M)
+
+#	Conclusions (I)
+
+#	Further research suggestions (I)
+
