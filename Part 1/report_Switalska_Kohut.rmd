@@ -7,7 +7,7 @@ output:
 ---
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
-library(dplyr)
+library(dplyr) 
 library(visdat)
 library(caret)
 library(RANN)

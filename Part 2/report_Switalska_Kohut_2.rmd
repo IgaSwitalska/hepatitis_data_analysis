@@ -11,10 +11,16 @@ output:
 library(dplyr)
 library(caret)
 library(MASS)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
 library(cluster)
 library(imbalance)
 library(NbClust)
 library(factoextra)
+library(e1071)
+library(fossil) 
+library(dbscan)
 source("fviz_nbclust_fixed.R") # fixes the bug in factoextra::fviz_nbclust(...)
 ```
 
@@ -58,6 +64,8 @@ df1 <- unstandarize(df1)
 
 ## Number of clusters
 ```{r}
+df.features <- df1.standarized[,2:20]
+df.class <- as.factor(df1$Class)
 dm <- daisy(df.features,metric = "gower")
 dm.mat <- as.matrix(dm)
 
@@ -92,16 +100,17 @@ agnes.complete <- agnes(x=dm.mat, diss=TRUE, method="complete")
 ```
 
 ```{r}
-fviz_dend(agnes.avg, cex=0.4, k=2) + ggtitle("Agnes dendrogram for average linkage")
-#+ theme(text = element_text(size=20), axis.text.y = element_text(size=20))
-```
-```{r}
-fviz_dend(agnes.single, cex=0.4, k=2)+ ggtitle("Agnes dendrogram for single linkage")
+fviz_dend(agnes.avg, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))  + ggtitle("") # + ggtitle("Agnes dendrogram for average linkage")
 ```
 
 ```{r}
-fviz_dend(agnes.avg, cex=0.4, k=2) + ggtitle("Agnes dendrogram for complete linkage")
+fviz_dend(agnes.single, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15)) + ggtitle("") #+ ggtitle("Agnes dendrogram for single linkage")
 ```
+
+```{r}
+fviz_dend(agnes.complete, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15)) + ggtitle("") #+ ggtitle("Agnes dendrogram for complete linkage")
+```
+
 ```{r}
 (agnes.avg.k2 <- cutree(agnes.avg, k=2))  # 2 clusters
 (agnes.avg.k3 <- cutree(agnes.avg, k=3))  # 3 clusters
@@ -113,12 +122,104 @@ table(agnes.avg.k3)
 table(agnes.avg.k4)
 ```
 
+```{r}
+agnes.complete.partition <- cutree(agnes.complete, k=2)
+agnes.single.partition <- cutree(agnes.single, k=2)
+agnes.avg.partition <- cutree(agnes.avg, k=2)
+
+sil.agnes <- silhouette(agnes.avg.partition, dm)
+
+fviz_silhouette(sil.agnes, xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+
+```
+```{r}
+sil.agnes <- silhouette(agnes.complete.partition, dm)
+
+fviz_silhouette(sil.agnes, xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+
+```
+```{r}
+sil.agnes <- silhouette(agnes.single.partition, dm)
+
+fviz_silhouette(sil.agnes, xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+
+```
+
+```{r}
+# AGNES vs actual classes
+
+partitions <- list(as.numeric(df1$Class), agnes.complete.partition, agnes.single.partition, agnes.avg.partition)
+results <- c()
+for (p1 in partitions) {
+  for (p2 in partitions) {
+    result<- compareMatchedClasses(p1, p2, method="exact")$diag[1,1]
+    results <- append(results,c(result))
+  }
+}
+
+reshape(results)
+```
+
+```{r}
+# Rand index
+
+partitions <- list(as.numeric(df1$Class), agnes.complete.partition, agnes.single.partition, agnes.avg.partition)
+results <- c()
+for (p1 in partitions) {
+  for (p2 in partitions) {
+    result<- rand.index(p1, p2)
+    results <- append(results,c(result))
+  }
+}
+
+results
+```
+
+```{r}
+matchClasses(tab.agnes, method="exact")
+rand.index(agnes.partition, as.numeric(df1$Class))
+adj.rand.index(agnes.partition, as.numeric(df1$Class))
+```
+
+
 ## DIANA (I)
+
+```{r}
+diana1 <- diana(x=dm.mat, diss=TRUE)
+fviz_dend(diana1, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15)) + ggtitle("") #+ ggtitle("Diana dendrogram for complete linkage")
+```
+```{r}
+diana.partition <- cutree(diana1, k=2)
+
+sil.diana <- silhouette(diana.partition, dm)
+
+fviz_silhouette(sil.diana, xlab="DIANA") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+
+```
+```{r}
+compareMatchedClasses(as.numeric(df1$Class), diana.partition, method="exact")$diag[1,1]
+rand.index(as.numeric(df1$Class), diana.partition)
+```
 
 ## Fuzzy C-means (M)
 
 ## DBSCAN (I)
+```{r}
+df.continuous <- df1.standarized[,-categorical]
+db1<-dbscan(df.continuous,eps=0.6,minPts=5)
+db1
 
+
+#pairs(df.continuous,col=db1$cluster +1L)
+
+
+```
+```{r}
+sil.dbscan <- silhouette(db1$cluster, dm)
+
+fviz_silhouette(sil.dbscan, xlab="DBSCAN") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+
+```
 
 #	Dimension reduction method
 
@@ -181,6 +282,8 @@ The plot for d = 2 shows not so big amount of spread around the fitted function,
 ```{r, echo=FALSE, results=FALSE}
 set.seed(123) 
 df.mds <- sammon(dis.matrix, k = 2)$points
+df.mds.k3 <- sammon(dis.matrix, k = 3)$points
+
 ```
 
 ```{r, echo=FALSE}
@@ -189,6 +292,11 @@ plot(df.mds[,1], df.mds[,2], col = factor(df1$Class), pch=16)
 ```
 
 So, we will use MDS for 2 dimensions. The classes are separated but also overlap, so in the future we may have a problem with classification.
+```{r, echo=FALSE, results=FALSE}
+df.mds.k3 <- data.frame(df.mds.k3)
+df.mds.k3$Class <- as.factor(df1$Class)
+df.mds.k3
+```
 
 ```{r, echo=FALSE, results=FALSE}
 df.mds <- data.frame(df.mds)
@@ -210,6 +318,18 @@ newMWMOTE <- mwmote(train, numInstances = n_new)
 train.balanced <- rbind(train, newMWMOTE)
 prop.table(table(train.balanced$Class))
 ```
+```{r, echo=FALSE}
+set.seed(123) 
+inTrain <- createDataPartition(y=df.mds$Class, times=1, p=0.75, list=FALSE)
+train.k3 <- df.mds.k3[inTrain,]
+test.k3 <- df.mds.k3[-inTrain,]
+
+n_new <- sum(train$Class == 0) - sum(train$Class == 1)
+
+newMWMOTE <- mwmote(train.k3, numInstances = n_new)
+train.balanced.k3 <- rbind(train.k3, newMWMOTE)
+```
+
 Below we can check the comparison of values before and after oversampling for three selected variables.
 ```{r}
 plotComparison(train, train.balanced, attrs = c("X1", "X2"))
@@ -260,8 +380,17 @@ metrices <- function(pred, real){
 model.lm <- lm(Class~X1+X2, data=train.balanced) 
 ggplot(test, aes(x=X1, y=X2,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.lm),intercept=intercept(model.lm))
 ```
+
 ```{r}
 metrices(lr_pred(model.lm, test.num, 0.5), test.num$Class)
+```
+
+###QDA
+
+```{r}
+p_thr = 0.167
+model.qda <- qda(Class~X1+X2, data=train.balanced)
+metrices(lda_pred(model.qda, test.num, p_thr), test.num$Class)
 ```
 ### Logistic regression
 ```{r}
@@ -272,6 +401,7 @@ pred.prob.plot <- data.frame(x = 1:n, probability = pred.prob, classes = test$Cl
 ggplot(data = pred.prob.plot, aes(x = x, y = probability)) +
     geom_point(aes(color = test$Class))
 ```
+
 ```{r}
 prob.to.labels <- function(probs, cutoff){
   classes <- rep("0",length(probs))
@@ -293,8 +423,41 @@ train.balanced.std <- predict(dataTransform, train.balanced)
 set.seed(123) 
 k.grid <- data.frame(k=1:25)
 cvControl <- trainControl(method="repeatedcv",number=5, repeats=5)
-knn.model <- train(train.balanced.std[c(1,2)], as.factor(train.balanced$Class), method="knn", tuneGrid =  k.grid, trControl=cvControl)
+knn.model <- train(train.balanced[c(1,2)], as.factor(train.balanced$Class), method="knn", tuneGrid =  k.grid, trControl=cvControl)
 ggplot(knn.model)+ geom_vline(xintercept = knn.model$bestTune[[1]], col="red", lty=2)
+```
+```{r}
+all_metrics <- list(c(metrices(predict(knn.model, newdata=test.num[-3]), test$Class), knn.model$bestTune[[1]]))
+#cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
+#confusion.matrix.results(cm)
+all_metrics
+```
+### Random tree
+
+```{r}
+full.tree <- rpart(Class~X1+X2, data=train.balanced, control=rpart.control(cp=-1, minsplit=5))
+plotcp(full.tree)
+```
+```{r}
+full.tree.pruned <- prune(full.tree, cp = 0.037)
+rpart.plot(full.tree.pruned)
+
+```
+
+### Random forest
+```{r}
+rf <- randomForest(Class~X1+X2, data=train.balanced, ntree=500)
+pred.labels <- predict(rf, newdata=test, type = "class")
+real.labels <- test$Class
+cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
+confusion.matrix.results(cm)
+```
+```{r}
+rf <- randomForest(Class~X1+X2+X3, data=train.balanced.k3, ntree=500)
+pred.labels <- predict(rf, newdata=test.k3, type = "class")
+real.labels <- test$Class
+cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
+confusion.matrix.results(cm)
 ```
 
 ## Clustering (M)
