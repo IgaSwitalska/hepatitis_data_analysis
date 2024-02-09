@@ -427,7 +427,10 @@ knn.model <- train(train.balanced[c(1,2)], as.factor(train.balanced$Class), meth
 ggplot(knn.model)+ geom_vline(xintercept = knn.model$bestTune[[1]], col="red", lty=2)
 ```
 ```{r}
-all_metrics <- list(c(metrices(predict(knn.model, newdata=test.num[-3]), test$Class), knn.model$bestTune[[1]]))
+dataTransform <- preProcess(test.num, method=c("center", "scale"))
+test.num.std <- predict(dataTransform, test.num)
+
+all_metrics <- list(c(metrices(predict(knn.model, newdata=test.num.std[-3]), test$Class), knn.model$bestTune[[1]]))
 #cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
 #confusion.matrix.results(cm)
 all_metrics
@@ -438,10 +441,39 @@ all_metrics
 full.tree <- rpart(Class~X1+X2, data=train.balanced, control=rpart.control(cp=-1, minsplit=5))
 plotcp(full.tree)
 ```
-```{r}
-full.tree.pruned <- prune(full.tree, cp = 0.037)
-rpart.plot(full.tree.pruned)
 
+```{r}
+printcp(full.tree)
+```
+
+```{r}
+full.tree.pruned <- prune(full.tree, cp = 0.0215054)
+rpart.plot(full.tree.pruned)
+```
+```{r}
+pred.labels <- predict(full.tree.pruned, newdata=test[-3], type = "class")
+real.labels <- test.num$Class
+cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
+confusion.matrix.results(cm)
+```
+```{r}
+full.tree <- rpart(Class~X1+X2+X3, data=train.balanced.k3, control=rpart.control(cp=-1, minsplit=5))
+plotcp(full.tree)
+```
+
+```{r}
+printcp(full.tree)
+```
+
+```{r}
+full.tree.pruned <- prune(full.tree, cp = 0.0268817)
+rpart.plot(full.tree.pruned)
+```
+```{r}
+pred.labels <- predict(full.tree.pruned, newdata=test.k3[-4], type = "class")
+real.labels <- test.num$Class
+cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
+confusion.matrix.results(cm)
 ```
 
 ### Random forest
