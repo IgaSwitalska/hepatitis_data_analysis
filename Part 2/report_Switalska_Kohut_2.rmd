@@ -1,9 +1,9 @@
 ---
 title: "Hepatisis data analysis"
 output:
-  pdf_document: 
-    number_sections: yes
   html_document:
+    number_sections: yes
+  pdf_document: 
     number_sections: yes
 ---
 
@@ -36,6 +36,7 @@ df[df == "?"] <- NA
 
 df <- mutate_all(df, function(x) as.numeric(as.character(x)))
 categorical <- c(1, 3:14, 20)
+numerical <- c(2, 15:19)
 df[, categorical] <- replace(df[, categorical], df[, categorical] == 2, 0)
 df[, categorical] <-  lapply(df[, categorical], as.factor)
 
@@ -62,13 +63,144 @@ df1 <- unstandarize(df1)
 
 # Cluster analysis 
 
-## Number of clusters
-```{r}
-df.features <- df1.standarized[,2:20]
-df.class <- as.factor(df1$Class)
-dm <- daisy(df.features,metric = "gower")
-dm.mat <- as.matrix(dm)
+There are 2 classes in the initial data, but we will not use this information in clustering and will try to determine the optimal number of clusters for each method. Moreover, we have mixed data, both numerical and categorical, so we use Gower’s dissimilarity measure in order to calculate dissimilarity matrix. 
 
+```{r}
+df.features <- df1.standarized[, 2:20]
+df.class.num <- df1$Class
+df.class <- as.factor(df1$Class)
+dm <- daisy(df.features, metric = "gower")
+dm.mat <- as.matrix(dm)
+```
+Visualization of dissimilarity matrix after ordering.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height = 5, fig.width = 5, fig.align = 'center'}
+# Visualization of dissimilarity matrix after ordering
+fviz_dist(dm, order = TRUE, gradient = list(low = "#00ccff", mid = "white", high = "#ff5c33"))
+```
+
+## K-means
+
+It is not possible to use K-means method with mixed data, so we will use it only with numerical one. Also, we standardized our data.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+df.num.st <- df1.standarized[numerical]
+```
+
+Since it is a partitioning cluster method, we first have to select the number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+# Elbow method
+fviz_nbclust(df.num.st, kmeans, nstart = 25, method = "wss") +
+  geom_vline(xintercept = 2, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(df.num.st, kmeans, nstart = 25, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+fviz_nbclust(df.num.st, kmeans, nstart = 25,  method = "gap_stat")+
+  labs(subtitle = "Gap statistic method")
+```
+So, the optimal number of clusters for K-means method:
+* Elbow method: it is difficult to determine the optimal number of clusters, because it is hart to say if it seems like the bend in the knee, but the possible choice is 2;
+* Silhouette method: it says that the optimal number of clusters is 2;
+* Gap statistic method: it says that the optimal number of clusters is 2.
+
+It's hard to say for sure how many clusters are in the dataset just looking at these statistics, but we can use 2 clusters in K-means method.
+
+Furthermore, we can run NbClust which computes up to 30 indices for determining the optimum number of clusters in a dataset and then takes a majority vote among them to see which is the optimum number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results=FALSE}
+cl.num.kmeans <- NbClust(data = df.num.st, distance="euclidean", method="kmeans")
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+factoextra::fviz_nbclust(cl.num.kmeans) + theme_minimal() + ggtitle("Optimal number of clusters for K-means method")
+```
+According to the majority rule, the best number of clusters for K-means method is 2, so we will use this one.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+kmeans2 <- kmeans(df.num.st, centers = 2, nstart = 25)
+```
+
+Since we use only numerical attributes here, we can use fviz_cluster to plot our clusters using PCA.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_cluster(kmeans2, df.num.st)
+```
+
+PCA does not explain the data well, but the clusters are well separated in this plot.
+
+The last part of the analysis is to validate the clusters found.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_silhouette(silhouette(kmeans2$cluster, dist(df.num.st)))
+```
+
+We can see, that the size of one cluster is 2 times larger than the other. The smaller cluster has a very small silhouette width, only 0.07. The average silhouette width is 0.3, which is not so good. Maybe another methods will be better.
+
+Now, let compare our clusters with original classes.
+
+```{r}
+compareMatchedClasses(df.class.num, kmeans2$cluster, method="exact")$diag[1,1]
+rand.index(df.class.num, kmeans2$cluster)
+```
+
+## Partition Around Medoids (PAM)
+
+The next method is Partition Around Medoids. PAM can be used with mixed data and it is less sensitive to outliers.
+
+Since it is a partitioning cluster method, we first have to select the number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+# Elbow method
+fviz_nbclust(df.features, pam, diss = dm, nstart = 25, method = "wss") +
+  geom_vline(xintercept = 3, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(df.features, pam, diss = dm, nstart = 25, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+fviz_nbclust(df.features, pam, diss = dm, nstart = 25,  method = "gap_stat")+
+  labs(subtitle = "Gap statistic method")
+```
+
+So, the optimal number of clusters for PAM method:
+* Elbow method: it seems like 3 clusters, because here it looks like a bend in the knee;
+* Silhouette method: it says that the optimal number of clusters is 3;
+* Gap statistic method: it also says that the optimal number of clusters is 3.
+
+It's hard to say for sure how many clusters are in the dataset just looking at these statistics, but we can use 3 clusters in PAM method. But we can also try 2 clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+pam2 <- pam(x = dm.mat, diss = TRUE, k = 2, nstart = 25)
+pam3 <- pam(x = dm.mat, diss = TRUE, k = 3, nstart = 25)
+```
+
+The last part of the analysis is to validate the clusters found.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_silhouette(silhouette(pam2$cluster, dm.mat))
+fviz_silhouette(silhouette(pam3$cluster, dm.mat))
+```
+
+We can see, that for 2 clusters, the size of clusters is similar, but for 3 clusters, the size of one cluster is almost 2 times larger than the others. The average silhouette width is 0.28 and 0.25 for 2 and 3 clusters, respectively. For 2 clusters the result is a slightly better, but it is still poor one and worse than for the K-means method.
+
+Now, let compare our clusters with original classes.
+
+```{r}
+compareMatchedClasses(df.class.num, pam2$cluster, method="exact")$diag[1,1]
+rand.index(df.class.num, pam2$cluster)
+```
+
+## AGNES
+```{r}
 all.complete <- NbClust(data=df.features,diss=dm, distance=NULL, min.nc=2, max.nc=10, method="complete", index="all")
 all.single <- NbClust(data=df.features,diss=dm, distance=NULL, min.nc=2, max.nc=10, method="single", index="all")
 all.avg <- NbClust(data=df.features,diss=dm, distance=NULL, min.nc=2, max.nc=10, method="average", index="all")
@@ -86,12 +218,6 @@ factoextra::fviz_nbclust(all.single) + theme_minimal() +ggtitle("Optimal number 
 factoextra::fviz_nbclust(all.avg) + theme_minimal() + ggtitle("Optimal number of clusters for average likage")
 ```
 
-
-## K-means (M)
-
-## PAM (M)
-
-## AGNES (I)
 We present AGNES clustering for all features and different linkage methods on the figures below. It can be seen that the single linkage method performs poorly by assigning almost all observations to one cluster.
 ```{r}
 agnes.avg      <- agnes(x=dm.mat, diss=TRUE, method="average")
@@ -110,7 +236,6 @@ fviz_dend(agnes.single, cex=0.4, k=2) + theme(text = element_text(size=15), axis
 ```{r}
 fviz_dend(agnes.complete, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15)) + ggtitle("") #+ ggtitle("Agnes dendrogram for complete linkage")
 ```
-
 ```{r}
 (agnes.avg.k2 <- cutree(agnes.avg, k=2))  # 2 clusters
 (agnes.avg.k3 <- cutree(agnes.avg, k=3))  # 3 clusters
@@ -132,17 +257,18 @@ sil.agnes <- silhouette(agnes.avg.partition, dm)
 fviz_silhouette(sil.agnes, xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
 
 ```
+
 ```{r}
 sil.agnes <- silhouette(agnes.complete.partition, dm)
 
 fviz_silhouette(sil.agnes, xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
 
 ```
+
 ```{r}
 sil.agnes <- silhouette(agnes.single.partition, dm)
 
 fviz_silhouette(sil.agnes, xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
-
 ```
 
 ```{r}
@@ -156,8 +282,8 @@ for (p1 in partitions) {
     results <- append(results,c(result))
   }
 }
-
-reshape(results)
+results
+# reshape(results)
 ```
 
 ```{r}
@@ -176,18 +302,19 @@ results
 ```
 
 ```{r}
-matchClasses(tab.agnes, method="exact")
-rand.index(agnes.partition, as.numeric(df1$Class))
-adj.rand.index(agnes.partition, as.numeric(df1$Class))
+# matchClasses(tab.agnes, method="exact")
+# rand.index(agnes.partition, as.numeric(df1$Class))
+# adj.rand.index(agnes.partition, as.numeric(df1$Class))
 ```
 
 
-## DIANA (I)
+## DIANA
 
 ```{r}
 diana1 <- diana(x=dm.mat, diss=TRUE)
 fviz_dend(diana1, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15)) + ggtitle("") #+ ggtitle("Diana dendrogram for complete linkage")
 ```
+
 ```{r}
 diana.partition <- cutree(diana1, k=2)
 
@@ -196,14 +323,58 @@ sil.diana <- silhouette(diana.partition, dm)
 fviz_silhouette(sil.diana, xlab="DIANA") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
 
 ```
+
 ```{r}
 compareMatchedClasses(as.numeric(df1$Class), diana.partition, method="exact")$diag[1,1]
 rand.index(as.numeric(df1$Class), diana.partition)
 ```
 
-## Fuzzy C-means (M)
+## Fuzzy clustering
 
-## DBSCAN (I)
+Since it is a partitioning cluster method, we first have to select the number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+# Elbow method
+fviz_nbclust(df.features, fanny, diss = dm, method = "wss") +
+  geom_vline(xintercept = 2, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(df.features, fanny, diss = dm, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+fviz_nbclust(df.features, fanny, diss = dm,  method = "gap_stat")+
+  labs(subtitle = "Gap statistic method")
+```
+So, the optimal number of clusters for Fuzzy clustering:
+* Elbow method: it seems like 2 clusters, because here it looks like a bend in the knee;
+* Silhouette method: it says that the optimal number of clusters is 2;
+* Gap statistic method: it also says that the optimal number of clusters is 2.
+
+Just looking at these statistics, we can use 2 clusters in Fuzzy analysis.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+fanny2 <- fanny(x = dm.mat, diss = TRUE, k = 2)
+```
+
+The last part of the analysis is to validate the clusters found.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_silhouette(silhouette(fanny2$cluster, dm.mat))
+```
+We can see, that the size of clusters is similar. The silhouette width for clusters is very different: for the one is 0.46, but for the another it is critical small: 0.10. So the average silhouette width for data is just 0.29.
+
+Now, let compare our clusters with original classes.
+
+```{r}
+compareMatchedClasses(df.class.num, fanny2$cluster, method="exact")$diag[1,1]
+rand.index(df.class.num, fanny2$cluster)
+```
+
+## DBSCAN
 ```{r}
 df.continuous <- df1.standarized[,-categorical]
 db1<-dbscan(df.continuous,eps=0.6,minPts=5)
@@ -218,26 +389,14 @@ db1
 sil.dbscan <- silhouette(db1$cluster, dm)
 
 fviz_silhouette(sil.dbscan, xlab="DBSCAN") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
-
 ```
 
 #	Dimension reduction method
 
 As we have both numerical and categorical attributes, we can not use PCA (Principal Component Analysis) method. We decided to use MDS (MultiDimensional Scaling). 
 
-## MDS (M)
+## MDS
 We use standardized data. 
-
-```{r, echo=FALSE, warning=FALSE, message=FALSE, results = FALSE}
-# Remove unnecessary features
-df1[, categorical] <-  lapply(df1[, categorical], as.factor)
-# df.mds <- subset(df1, col=-c("Class"))
-df.mds <- df1[,2:20]
-
-# Derive dissimilarities between objects
-dissimilarities <- daisy(df.mds, stand = T)
-dis.matrix <- as.matrix(dissimilarities)
-```
 
 Let us look at the scree plot.
 ```{r, echo=FALSE, results=FALSE}
@@ -250,25 +409,25 @@ scree.plot <- function(d, k) {
     plot(seq(k),rev(stresses), type="b", xaxp=c(1,k, k-1), ylab="Stress", xlab="Number of dimensions")
 }
 
-scree.plot(dissimilarities, k = d.max <- 6)
+scree.plot(dm, k = d.max <- 6)
 ```
 
 The scree plot shows a clear elbow at dimension = 2, which suggests that a 2D solution should be adequate. Now we check out the Shepard diagram:
 
-```{r, echo=FALSE, results=FALSE}
+```{r, echo=FALSE, results=FALSE, fig.height = 10, fig.width = 10, fig.align = 'center'}
 stress.vec <- numeric(d.max)
 
 par(mfrow=c(3,2))
 
 for (d in 1:d.max)
 {
-  mds.k <- sammon(dis.matrix, k = d)
+  mds.k <- sammon(dm.mat, k = d)
   STRESS <- mds.k$stress
 
   stress.vec[d] <- STRESS
   
   # Shepard diagram
-  shep <- Shepard(dissimilarities, mds.k$points, p=d)
+  shep <- Shepard(dm, mds.k$points, p=d)
   plot(shep, pch=".", main=paste0("Shepard diagram (d=",d,")"),
        cex=0.5, xlab="original distance",  ylab="distance after MDS mapping")
   lines(shep$x, shep$yf, type = "S", col="red", lty=2)
@@ -281,33 +440,32 @@ The plot for d = 2 shows not so big amount of spread around the fitted function,
 
 ```{r, echo=FALSE, results=FALSE}
 set.seed(123) 
-df.mds <- sammon(dis.matrix, k = 2)$points
-df.mds.k3 <- sammon(dis.matrix, k = 3)$points
+df.mds <- sammon(dm.mat, k = 2)$points
+df.mds.k3 <- sammon(dm.mat, k = 3)$points
 
 ```
 
 ```{r, echo=FALSE}
 plot(df.mds[,1], df.mds[,2], col = factor(df1$Class), pch=16)
-# text(mds.results[,1], mds.results[,2], car.names, col="brown",cex=.8)
 ```
 
 So, we will use MDS for 2 dimensions. The classes are separated but also overlap, so in the future we may have a problem with classification.
-```{r, echo=FALSE, results=FALSE}
-df.mds.k3 <- data.frame(df.mds.k3)
-df.mds.k3$Class <- as.factor(df1$Class)
-df.mds.k3
-```
 
+To sum up, we have data with two numerical features and a target attribute. The mean of columns is 0. 
 ```{r, echo=FALSE, results=FALSE}
 df.mds <- data.frame(df.mds)
 df.mds$Class <- as.factor(df1$Class)
 df.mds
 ```
 
+```{r}
+summary(df.mds)
+```
+
 ## Classification (I)
 
 ```{r, echo=FALSE}
-set.seed(123) 
+set.seed(123)
 inTrain <- createDataPartition(y=df.mds$Class, times=1, p=0.75, list=FALSE)
 train <- df.mds[inTrain,]
 test <- df.mds[-inTrain,]
@@ -318,8 +476,9 @@ newMWMOTE <- mwmote(train, numInstances = n_new)
 train.balanced <- rbind(train, newMWMOTE)
 prop.table(table(train.balanced$Class))
 ```
+
 ```{r, echo=FALSE}
-set.seed(123) 
+set.seed(123)
 inTrain <- createDataPartition(y=df.mds$Class, times=1, p=0.75, list=FALSE)
 train.k3 <- df.mds.k3[inTrain,]
 test.k3 <- df.mds.k3[-inTrain,]
@@ -377,7 +536,7 @@ metrices <- function(pred, real){
 ```
 
 ```{r,echo=FALSE}
-model.lm <- lm(Class~X1+X2, data=train.balanced) 
+model.lm <- lm(Class~X1+X2, data=train.balanced)
 ggplot(test, aes(x=X1, y=X2,color=Class)) + geom_point(size=1) + geom_abline(slope=slope(model.lm),intercept=intercept(model.lm))
 ```
 
@@ -420,12 +579,13 @@ logit
 dataTransform <- preProcess(train.balanced, method=c("center", "scale"))
 train.balanced.std <- predict(dataTransform, train.balanced)
 
-set.seed(123) 
+set.seed(123)
 k.grid <- data.frame(k=1:25)
 cvControl <- trainControl(method="repeatedcv",number=5, repeats=5)
 knn.model <- train(train.balanced[c(1,2)], as.factor(train.balanced$Class), method="knn", tuneGrid =  k.grid, trControl=cvControl)
 ggplot(knn.model)+ geom_vline(xintercept = knn.model$bestTune[[1]], col="red", lty=2)
 ```
+
 ```{r}
 dataTransform <- preProcess(test.num, method=c("center", "scale"))
 test.num.std <- predict(dataTransform, test.num)
@@ -478,12 +638,13 @@ confusion.matrix.results(cm)
 
 ### Random forest
 ```{r}
-rf <- randomForest(Class~X1+X2, data=train.balanced, ntree=500)
-pred.labels <- predict(rf, newdata=test, type = "class")
-real.labels <- test$Class
-cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
-confusion.matrix.results(cm)
+# rf <- randomForest(Class~X1+X2, data=train.balanced, ntree=500)
+# pred.labels <- predict(rf, newdata=test, type = "class")
+# real.labels <- test$Class
+# cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
+# confusion.matrix.results(cm)
 ```
+
 ```{r}
 rf <- randomForest(Class~X1+X2+X3, data=train.balanced.k3, ntree=500)
 pred.labels <- predict(rf, newdata=test.k3, type = "class")
@@ -492,9 +653,339 @@ cm <- confusionMatrix(table(pred.labels, real.labels), positive = "1")
 confusion.matrix.results(cm)
 ```
 
-## Clustering (M)
+## Clustering
 
-#	Conclusions (I)
+There are 2 classes in the initial data, but we will not use this information in clustering and will try to determine the optimal number of clusters for each method. Moreover, we have mixed data, both numerical and categorical, so we use Gower’s dissimilarity measure in order to calculate dissimilarity matrix. 
 
-#	Further research suggestions (I)
+As we mentioned before, we have two numerical featured, so we use euclidean distance to clusterization. We standardized our data.  
+
+```{r}
+df.features.mds <- df.mds[-3]
+df.features.mds <- scale(df.features.mds)
+dm.mds <- daisy(df.features.mds)
+dm.mat.mds <- as.matrix(dm.mds)
+```
+Visualization of dissimilarity matrix after ordering.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height = 5, fig.width = 5, fig.align = 'center'}
+# Visualization of dissimilarity matrix after ordering
+fviz_dist(dm.mds, order = TRUE, gradient = list(low = "#00ccff", mid = "white", high = "#ff5c33"))
+```
+
+The dissimilarity matrix looks better than for initial data. We can see that more values near the diagonal are blue. 
+
+### K-means
+
+As we have only numerical data, we do not need to divide our dataset. 
+
+Since it is a partitioning cluster method, we first have to select the number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+# Elbow method
+fviz_nbclust(df.features.mds, kmeans, nstart = 25, method = "wss") +
+  geom_vline(xintercept = 3, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(df.features.mds, kmeans, nstart = 25, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+fviz_nbclust(df.features.mds, kmeans, nstart = 25,  method = "gap_stat")+
+  labs(subtitle = "Gap statistic method")
+```
+So, the optimal number of clusters for K-means method:
+* Elbow method: it is difficult to determine the optimal number of clusters, because it is hard to say if it seems like the bend in the knee, but the possible choice is 3;
+* Silhouette method: it says that the optimal number of clusters is 4;
+* Gap statistic method: it is strange, but it says that the optimal number of clusters is 1, however, we also see that we can use 3 clusters.
+
+It's hard to say for sure how many clusters are in the dataset just looking at these statistics, but we can use 3 or 4 clusters in K-means method.
+
+Furthermore, we can run NbClust which computes up to 30 indices for determining the optimum number of clusters in a dataset and then takes a majority vote among them to see which is the optimum number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results=FALSE}
+cl.num.kmeans <- NbClust(data = df.features.mds, distance = "euclidean", method = "kmeans")
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+factoextra::fviz_nbclust(cl.num.kmeans) + theme_minimal() + ggtitle("Optimal number of clusters for K-means method")
+```
+According to the majority rule, the best number of clusters for K-means method is 2, 3 or 4, so we will use them.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+kmeans2 <- kmeans(df.features.mds, centers = 2, nstart = 25)
+kmeans3 <- kmeans(df.features.mds, centers = 3, nstart = 25)
+kmeans4 <- kmeans(df.features.mds, centers = 4, nstart = 25)
+```
+
+As we have only 2 attributes, we can use fviz_cluster to plot our clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_cluster(kmeans2, df.features.mds)
+fviz_cluster(kmeans3, df.features.mds)
+fviz_cluster(kmeans4, df.features.mds)
+```
+
+We can see that the clusters are well separated for all number of clusters.
+
+The last part of the analysis is to validate the clusters found.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_silhouette(silhouette(kmeans2$cluster, dm.mds))
+fviz_silhouette(silhouette(kmeans3$cluster, dm.mds))
+fviz_silhouette(silhouette(kmeans4$cluster, dm.mds))
+```
+
+We can see, that the size of one cluster is larger than the others for all number of clusters. The bigger cluster is, the higher silhouette width it has. The average silhouette width is 0.38, 0.41, and 0.42 for 2, 3, and 4 clusters, respectively. For 4 clusters it works better, we can also mention that results are better than for initial data, but we compare it in more detail later.
+
+Now, let compare our clusters with original classes for 2 clusters.
+
+```{r}
+compareMatchedClasses(df.class.num, kmeans2$cluster, method="exact")$diag[1,1]
+rand.index(df.class.num, kmeans2$cluster)
+```
+
+### Partition Around Medoids (PAM)
+
+The next method is Partition Around Medoids. PAM can be used with mixed data and it is less sensitive to outliers.
+
+Since it is a partitioning cluster method, we first have to select the number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+# Elbow method
+fviz_nbclust(df.features.mds, pam, diss = dm.mds, nstart = 25, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(df.features.mds, pam, diss = dm.mds, nstart = 25, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+fviz_nbclust(df.features.mds, pam, diss = dm.mds, nstart = 25,  method = "gap_stat")+
+  labs(subtitle = "Gap statistic method")
+```
+
+So, the optimal number of clusters for PAM method:
+* Elbow method: it is hard to determine the optimal number of clusters, because it is hard to say if it seems like the bend in the knee, but the possible choice is 4;
+* Silhouette method: it says that the optimal number of clusters is 4;
+* Gap statistic method: it says that the optimal number of clusters is 1, however, we also see that we can use 3 clusters.
+
+It's hard to say for sure how many clusters are in the dataset just looking at these statistics, but we can use 3 and 4 clusters in PAM method. But we can also try 2 clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+pam2 <- pam(x = dm.mat.mds, diss = TRUE, k = 2, nstart = 25)
+pam3 <- pam(x = dm.mat.mds, diss = TRUE, k = 3, nstart = 25)
+pam4 <- pam(x = dm.mat.mds, diss = TRUE, k = 4, nstart = 25)
+```
+
+As we have only 2 attributes, we can use fviz_cluster to plot our clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+pam2$data = df.features.mds
+pam3$data = df.features.mds
+pam4$data = df.features.mds
+
+fviz_cluster(pam2)
+fviz_cluster(pam3)
+fviz_cluster(pam4)
+```
+
+We can see that the clusters are well separated for all number of clusters.
+
+The last part of the analysis is to validate the clusters found.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_silhouette(silhouette(pam2$cluster, dm.mat.mds))
+fviz_silhouette(silhouette(pam3$cluster, dm.mat.mds))
+fviz_silhouette(silhouette(pam4$cluster, dm.mat.mds))
+```
+
+We can see, that the size of one cluster is larger than the others for all number of clusters. The average silhouette width is 0.37, 0.41, and 0.41 for 2, 3, and 4 clusters, respectively. For 2 clusters it works worse. We can also mention that results are better than for initial data.
+
+Now, let compare our clusters with original classes for 2 clusters.
+
+```{r}
+compareMatchedClasses(df.class.num, pam2$cluster, method="exact")$diag[1,1]
+rand.index(df.class.num, pam2$cluster)
+```
+
+### AGNES
+During the previous clustering we saw, that it works badly for single linkage, so we will not use it now. 
+
+```{r}
+all.complete <- NbClust(data = df.features.mds, diss = dm.mds, distance = NULL, min.nc=2, max.nc=10, method="complete", index="all")
+all.avg <- NbClust(data = df.features.mds, diss = dm.mds, distance = NULL, min.nc=2, max.nc=10, method="average", index="all")
+```
+
+```{r, echo=FALSE}
+factoextra::fviz_nbclust(all.complete) + theme_minimal() + ggtitle("Optimal number of clusters for complete likage")
+```
+
+```{r, echo=FALSE}
+factoextra::fviz_nbclust(all.avg) + theme_minimal() + ggtitle("Optimal number of clusters for average likage")
+```
+
+For complete linkage we will use 3 and 4 clusters, and for average linkage only 3 clusters. In addition, we will use 2 clusters in order to compare it with previous results. 
+
+```{r}
+agnes.avg      <- agnes(x=dm.mat.mds, diss=TRUE, method="average")
+agnes.complete <- agnes(x=dm.mat.mds, diss=TRUE, method="complete")
+```
+
+```{r}
+fviz_dend(agnes.avg, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+fviz_dend(agnes.avg, cex=0.4, k=3) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+fviz_dend(agnes.complete, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+fviz_dend(agnes.complete, cex=0.4, k=3) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+fviz_dend(agnes.complete, cex=0.4, k=4) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+agnes.compl2 <- cutree(agnes.complete, k=2)
+agnes.compl3 <- cutree(agnes.complete, k=3)
+agnes.compl4 <- cutree(agnes.complete, k=4)
+
+agnes.avg2 <- cutree(agnes.avg, k=2)
+agnes.avg3 <- cutree(agnes.avg, k=3)
+```
+
+As we have only 2 attributes, we can use fviz_cluster to plot our clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_cluster(list(data = df.features.mds, cluster = agnes.compl2))
+fviz_cluster(list(data = df.features.mds, cluster = agnes.compl3))
+fviz_cluster(list(data = df.features.mds, cluster = agnes.compl4))
+
+fviz_cluster(list(data = df.features.mds, cluster = agnes.avg2))
+fviz_cluster(list(data = df.features.mds, cluster = agnes.avg3))
+```
+
+We can see that the clusters are well separated for all number of clusters.
+
+```{r}
+fviz_silhouette(silhouette(agnes.compl2, dm.mds), xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_silhouette(silhouette(agnes.compl3, dm.mds), xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_silhouette(silhouette(agnes.compl4, dm.mds), xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+
+fviz_silhouette(silhouette(agnes.avg2, dm.mds), xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_silhouette(silhouette(agnes.avg3, dm.mds), xlab="AGNES") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+Now, let compare our clusters with original classes for 2 clusters.
+
+```{r}
+rand.index(df.class.num, agnes.compl2)
+rand.index(df.class.num, agnes.avg2)
+```
+
+### DIANA
+
+```{r}
+diana.all <- diana(x = dm.mat.mds, diss = TRUE)
+fviz_dend(diana.all, cex=0.4, k=2) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_dend(diana.all, cex=0.4, k=3) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_dend(diana.all, cex=0.4, k=4) + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+diana2 <- cutree(diana.all, k=2)
+diana3 <- cutree(diana.all, k=3)
+diana4 <- cutree(diana.all, k=4)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_cluster(list(data = df.features.mds, cluster = diana2))
+fviz_cluster(list(data = df.features.mds, cluster = diana3))
+fviz_cluster(list(data = df.features.mds, cluster = diana4))
+```
+
+```{r}
+fviz_silhouette(silhouette(diana2, dm.mds), xlab="DIANA") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_silhouette(silhouette(diana3, dm.mds), xlab="DIANA") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+fviz_silhouette(silhouette(diana4, dm.mds), xlab="DIANA") + theme(text = element_text(size=15), axis.text.y = element_text(size=15))
+```
+
+```{r}
+compareMatchedClasses(df.class.num, diana2, method="exact")$diag[1,1]
+rand.index(df.class.num, diana2)
+```
+
+### Fuzzy C-means
+
+Since it is a partitioning cluster method, we first have to select the number of clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+# Elbow method
+fviz_nbclust(df.features.mds, fanny, diss = dm.mds, method = "wss") +
+  geom_vline(xintercept = 3, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(df.features.mds, fanny, diss = dm.mds, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+fviz_nbclust(df.features.mds, fanny, diss = dm.mds,  method = "gap_stat")+
+  labs(subtitle = "Gap statistic method")
+```
+
+So, the optimal number of clusters for Fuzzy clustering:
+* Elbow method: it is hard to determine the optimal number of clusters, because it is hart to say if it seems like the bend in the knee, but the possible choice is 3;
+* Silhouette method: it says that the optimal number of clusters is 3;
+* Gap statistic method: it says that the optimal number of clusters is 1, however, we also see that we can use 3 clusters.
+
+Just looking at these statistics, we can use 2 or 3 clusters in Fuzzy analysis.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(123)
+fanny2 <- fanny(x = dm.mat.mds, diss = TRUE, k = 2)
+fanny3 <- fanny(x = dm.mat.mds, diss = TRUE, k = 3)
+```
+
+As we have only 2 attributes, we can use fviz_cluster to plot our clusters.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fanny2$data = df.features.mds
+fanny3$data = df.features.mds
+
+fviz_cluster(fanny2)
+fviz_cluster(fanny3)
+```
+
+We can see that the clusters are well separated for all number of clusters.
+
+The last part of the analysis is to validate the clusters found.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fviz_silhouette(silhouette(fanny2$cluster, dm.mat.mds))
+fviz_silhouette(silhouette(fanny3$cluster, dm.mat.mds))
+```
+
+Now, let compare our clusters with original classes.
+
+```{r}
+compareMatchedClasses(df.class.num, fanny2$cluster, method="exact")$diag[1,1]
+rand.index(df.class.num, fanny2$cluster)
+```
+
+#	Conclusions
+
+#	Further research suggestions
 
