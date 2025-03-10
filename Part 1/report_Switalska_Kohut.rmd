@@ -88,14 +88,14 @@ Our data set consist of 155 observations and 20 columns. The features are the fo
 
 20. **Histology** - histology is the branch of biology that studies the microscopic anatomy of biological tissues. A factor at two levels 1 (yes) and 2 (no).
 
-```{r}
+```{r, echo=FALSE}
 df <- read.table("hepatitis.data", sep = ",")
 colnames(df) <- c("Class","Age","Sex","Steroid","Antivirals","Fatigue","Malaise","Anorexia","LiverBig","LiverFirm","SpleenPalpable","Spiders","Ascites","Varices","Bilirubin","AlkPhosphate","Sgot","Albumin","Protime","Histology") # nolint
 ```
 
 Below we present the first rows of our data set. As can be seen, in addition to the fact that we will have to change the encoding from 1-2 to 0-1, we will also have to deal with missing values. In our dataset, they are marked as "?".
 
-```{r}
+```{r, echo=FALSE}
 head(df[1:10]) %>% 
     flextable() %>% 
     theme_box() %>% 
@@ -113,7 +113,10 @@ head(df[11:20]) %>%
 
 We initially had the wrong data types, so we changed them to the correct ones.
 
-```{r}
+* Change "?" to NA 
+* Convert categorical columns to binary values: 0 and 1.
+
+```{r, echo=FALSE}
 df[df == "?"] <- NA
 
 df <- mutate_all(df, function(x) as.numeric(as.character(x)))
@@ -126,20 +129,20 @@ df[, categorical] <-  lapply(df[, categorical], as.factor)
 
 There are 5 features without missing values, 10 with a small amount, 4 with an allowed number, and 1 (Protime) with almost half of the missing values.
 
-```{r}
+```{r, echo=FALSE}
 plot_missing(df)
 ```
 
 In all, we have 75 rows with missing values, which have a total of 167 missing values. So we can not remove these rows.
 
-```{r}
+```{r, echo=FALSE, , results='hide'}
 sum(rowSums(is.na(df)) != 0)
 sum(is.na(df))
 ```
 
 We can see that the majority of variables have missing values only in several attributes, but there exist objects with several non-missing characteristics. 
 
-```{r}
+```{r, echo=FALSE}
 vis_dat(df)
 ```
 
@@ -147,9 +150,9 @@ vis_dat(df)
 
 We used several methods to impute missing values: knnImpute (df1), bagImpute (df2), medianImpute (df3), and function with different methods for different attributes (predictive mean matching for numeric data and logistic regression imputation for binary data where a factor is with 2 levels)
 
-We need all numerical values to use the first 3 methods.
+We need all numerical values to apply the first 3 methods, so create new dataset which containts only these variables.
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123)
 df.new <- mutate_all(df, function(x) as.numeric(as.character(x)))
 data_transform <- preProcess(df.new, method = "knnImpute")
@@ -177,16 +180,16 @@ unstandarize <- function(data){
 }
 ```
 
-```{r}
+```{r, echo=FALSE}
 df1.standarized <- df1
 df2[c(4:14, 16:17, 19)] <- round(df2[c(4:14, 16:17, 19)])
 df3[c(4:14, 16:17, 19)] <- round(df3[c(4:14, 16:17, 19)])
 df1 <- unstandarize(df1)
 ```
 
-In this function we impute missing values 1 time (df4), and 5 times in order to get better results (df5)
+In the last function, mice, we impute missing values once (df4) and five times (df5) to achieve better results.
 
-```{r, results="hide"}
+```{r, results="hide", echo=FALSE}
 methods = c(" ", " ", " ", "logreg", " ", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "logreg", "pmm", "pmm", "pmm", "pmm", "pmm", " ")
 imp_single <- mice(df, m = 1, method = methods) # Impute missing values
 df4 <- complete(imp_single)         # Store imputed data
@@ -208,13 +211,13 @@ df_all <- rbind(df, df1, df2, df3, df4, df5)
 df_all$method <- as.factor(df_all$method)
 ```
 
-```{r fig3, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r fig3, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 ggplot(na.omit(df_all), aes(x = LiverFirm, fill = method)) +
   scale_fill_brewer(palette = "Set2") +
   geom_bar(position = "dodge")
 ```
 
-```{r fig2, fig.height = 7, fig.width = 7, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r fig2, fig.height = 7, fig.width = 7, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 ggplot(na.omit(df_all), aes(x = Protime, color = method)) +
   scale_fill_brewer(palette = "Set2") +
   geom_density(size = 1.1) +
@@ -243,7 +246,7 @@ to_numeric1 <- function(data) {
 }
 ```
 
-```{r, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 6, fig.width = 6, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 df1.num <- to_numeric1(df1)
 df1.num.pca <- prcomp(df1.num[,2:20], center=T, scale=T)
 pca <- data.frame(PC1 = df1.num.pca$x[,1], PC2 = df1.num.pca$x[,2], classes = as.factor(df1.num$Class))
@@ -380,7 +383,7 @@ Insights:
   
   * We have several balanced attributes: Steroid, Histology.
   
-```{r}
+```{r, echo=FALSE}
 plot_bar(df, by = "method", by_position = "dodge")
 ```
 
@@ -396,7 +399,7 @@ Insights:
   
 * "Spiders" attribute might be important. The majority of people who died had spiders.
   
-```{r}
+```{r, echo=FALSE}
 df1[, categorical] <-  lapply(df1[, categorical], as.factor)
 
 plot_bar(df1[-21], by = "Class", by_position = "dodge")
@@ -416,7 +419,7 @@ Insights:
   
   * Age looks like Gamma distribution, Albumin - Beta, AlkPhosphate - Log Normal, Bilirubin - Log Normal, Protime - Beta, and Sgot - Exponential.
 
-```{r, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 plot_histogram(df, geom_histogram_args = list("fill" = "#f8766d"))
 ```
 
@@ -453,7 +456,7 @@ In the additional file, we can see density plots for different methods of imputi
 
 We can see that q-q plot for Age, Albumin and Protime look no so bad, maybe this attributes have normal distribution. 
 
-```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 10, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 plot_qq(df)
 ```
 
@@ -467,7 +470,7 @@ Insights:
   
   * It's better to use Albumin, Bilirubin, and Protime to classify because they have larger differences. 
 
-```{r, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE}
+```{r, fig.height = 6, fig.width = 10, fig.align = 'center', warning=FALSE, message=FALSE, echo=FALSE}
 plot_boxplot(df, by = "Class")
 ```
 
@@ -481,13 +484,13 @@ According to the correlation matrix we have low correlation for all pair of feat
 
 We can also observe two outliers (people with high level of Bilirubin).
 
-```{r fig_corr, fig.height = 10, fig.width = 10, fig.align = 'center'}
+```{r fig_corr, fig.height = 10, fig.width = 10, fig.align = 'center', echo=FALSE}
 ggpairs(df1, columns = c(2,15:19), aes(color = Class, alpha = 0.5))
 ```
 
 When it comes to correlation between binary variables, "Malaise" is correlated to "Fatigue" and "Anorexia". The target class, on the other hand, is most correlated with "Spiders" and "Ascites".
 
-```{r}
+```{r, echo=FALSE}
 to_numeric <- function(data) {
   data[,categorical] <- lapply(data[, categorical], as.numeric)
   data[,categorical] <- data[,categorical] - 1
@@ -495,7 +498,7 @@ to_numeric <- function(data) {
 }
 ```
 
-```{r fig_corr2, fig.height = 10, fig.width = 10, fig.align = 'center'}
+```{r fig_corr2, fig.height = 10, fig.width = 10, fig.align = 'center', echo=FALSE}
 cor_matrix <- cor(to_numeric(df1)[, categorical], method = "pearson")
 corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 ```
@@ -519,9 +522,9 @@ corrplot(cor_matrix, tl.col = "black", addCoef.col = 1, number.cex = 0.9)
 
 # Classification
 
-We have the same values in variable Class in datasets for all imputing methods, so we can use the same inTrain.
+We have the same values in variable Class in datasets for all imputing methods, so we can use the same inTrain dataset.
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123) 
 inTrain <- createDataPartition(y=df1$Class, times=1, p=0.75, list=FALSE)
 
@@ -540,7 +543,7 @@ test3 <- df5[-inTrain,-21]
 To solve class imbalance problem we decided to use Majority Weighted Minority Oversampling Technique.
 We have the same values in variable Class in datasets for all imputing methods, so we can use the same n_new.
 
-```{r}
+```{r, echo=FALSE}
 # oversampling
 n_new <- sum(train1$Class == 0) - sum(train1$Class == 1)
 train.num1 <- to_numeric1(train1)
@@ -563,14 +566,23 @@ train.balanced3 <- rbind(train.num3[-21], newMWMOTE3)
 
 Let's check the proportion of the classes in train and test sets. We can see that they are similar. In a balanced set, classes are divided equally.
 
-```{r}
+* For a train set:
+```{r, echo=FALSE}
 prop.table(table(train1$Class))
+```
+
+* For a test set:
+```{r, echo=FALSE}
 prop.table(table(test1$Class))
+```
+
+* For a balanced set:
+```{r, echo=FALSE}
 prop.table(table(train.balanced1$Class))
 ```
 
 Below we can check the comparison of values before and after oversampling for three selected variables.
-```{r}
+```{r, echo=FALSE}
 train.balanced1.2 <- train.balanced1
 train.balanced1.2[, categorical] <-  lapply(train.balanced1.2[, categorical], as.factor)
 
@@ -612,7 +624,7 @@ Formulas:
 
 Our first clasification is based linear regression. We fited the model, which took into account all the variables. As can be seen the importatnt variables are the following: Sex, Malaise, Anorexia, SpleenPalpable, Spiders, Bilurubin, Albumin and Protime.
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123) 
 model.0 <- lm(Class~., data=train.balanced1) 
 summary(model.0)
@@ -652,9 +664,32 @@ metrices <- function(pred, real){
 }
 ```
 
-We then decided to construct the model using important features. We also wanted to chceck if our initial insights were correct and fitted nine models using all combinations of Albumin and Protime with other attributes
+We then decided to construct the model using important features. We also wanted to check if our initial insights were correct and fitted nine models using all combinations of Albumin and Protime with other attributes.
 
-```{r}
+Selected features for the model:
+
+1. Albumin, Bilirubin
+
+2. Albumin, AlkPhosphate 
+
+3. Albumin, Sgot
+
+4. Albumin, Protime
+
+5. Protime, Age
+
+6. Protime, Bilirubin
+
+7. Protime, AlkPhosphate
+
+8. Protime, Sgot
+
+9. Albumin, Age
+
+10. Sex, Malaise, Anorexia, SpleenPalpable, Spiders, Bilirubin, Albumin, Protime
+
+
+```{r, echo=FALSE}
 # two variables
 model.1 <- lm(Class~Albumin+Bilirubin, data=train.balanced1) 
 model.2 <- lm(Class~Albumin+AlkPhosphate, data=train.balanced1) 
@@ -721,7 +756,7 @@ lr_metrices2 %>%
 
 The final step will be to compare the three best models for two other imputation methods. It can be easily seen that for the knn imputation method we obtain the best results. For all three models, the accuracy, recall, precision and F-measure are really high.
 
-```{r}
+```{r, echo=FALSE}
 model.6.1 <- lm(Class~Protime+Bilirubin, data=train.balanced1) 
 model.6.2 <- lm(Class~Protime+Bilirubin, data=train.balanced2) 
 model.6.3 <- lm(Class~Protime+Bilirubin, data=train.balanced3) 
@@ -782,7 +817,7 @@ To conclude, in the case of linear regression clasification. The best model is t
 
 For the binary clasification, where classes distribution is balanced the LDA is equivalent to the linerar regression. Hence this time we will use the inbalanced data set and compare LDA models for the different threshlods calculated based on the cost matrix. We will use the same features as before.
 
-```{r}
+```{r, echo=FALSE}
 model.0 <- lda(Class~., data=train.num1) 
 model.1 <- lda(Class~Albumin+Bilirubin, data=train.num1) 
 model.2 <- lda(Class~Albumin+AlkPhosphate, data=train.num1) 
@@ -917,7 +952,7 @@ For the QDA we will take into account only numeric variables and we will compare
 
 On the other hand Protime-Age and Albumin-Bilirubin models improved they performance.
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123)
 model.0 <- qda(Class~Age+Bilirubin+AlkPhosphate+Sgot+Albumin+Protime, data=train.num1)
 model.1 <- qda(Class~Albumin+Bilirubin, data=train.num1) 
@@ -1029,16 +1064,22 @@ qda_metrices2 %>%
 
 We need numeric data. In the beginning we use all attributes for different imputing methods.
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
 set.seed(123)
 model.logit1 <-  glm(Class~.-Class, data=train.balanced1, family=binomial(link="logit"))
 model.logit2 <-  glm(Class~.-Class, data=train.balanced2, family=binomial(link="logit"))
 model.logit3 <-  glm(Class~.-Class, data=train.balanced3, family=binomial(link="logit"))
 ```
 
-Now, we build the logistic regression model without variables that are unnecessary from the summary and useless from EDA.
+The next step is to build the logistic regression model, excluding variables that are unnecessary based on the summary and irrelevant from the EDA.
 
-```{r, warning=FALSE, message=FALSE}
+The obtained models:
+
+1. Excluding Age, Anorexia, Bilirubin
+
+2. Excluding Age, Steroid, AlkPhosphate, Sgot
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
 set.seed(123)
 model.logit4 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced1, family=binomial(link="logit"))
 model.logit5 <-  glm(Class~.-Class-Age-Anorexia-Bilirubin, data=train.balanced2, family=binomial(link="logit"))
@@ -1056,7 +1097,7 @@ Since we have the same splits, we can use the same n, p, colors.
 
 There are false predictions in all models, but not so many.
 
-```{r}
+```{r, echo=FALSE}
 pred.prob1 <- predict(model.logit1, test.num1, type = "response")
 pred.prob2 <- predict(model.logit2, test.num2, type = "response")
 pred.prob3 <- predict(model.logit3, test.num3, type = "response")
@@ -1141,7 +1182,7 @@ p9 <- ggplot(pred.prob.plot9, aes(x = probability)) +
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, ncol = 3, nrow = 3)
 ```
 
-Now, let's convert probabilities to class labels for a given cutoff
+In the final step, convert probabilities to class labels using a cutoff of 0.5.
 
 ```{r, echo=FALSE}
 prob.to.labels <- function(probs, cutoff){
@@ -1151,7 +1192,7 @@ prob.to.labels <- function(probs, cutoff){
 }
 ```
 
-```{r}
+```{r, echo=FALSE}
 pred.labels1 <- prob.to.labels(probs=pred.prob1, cutoff=0.5)
 pred.labels2 <- prob.to.labels(probs=pred.prob2, cutoff=0.5)
 pred.labels3 <- prob.to.labels(probs=pred.prob3, cutoff=0.5)
@@ -1257,7 +1298,7 @@ logit_statistics <- round(logit_statistics,2)
 logit_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), logit_statistics)
 ```
 
-```{r}
+```{r, echo=FALSE}
 logit_statistics %>%
     flextable() %>%
     theme_box() %>%
@@ -1311,7 +1352,7 @@ lst <- c(lst, list(...))
   return(lst)
 }
 ```
-```{r}
+```{r, echo=FALSE}
 set.seed(123) 
 comb <- list(c(18,13),c(18,19),c(18,7),c(18,15),c(13,19),c(13,7),c(13,15),c(19,7),c(19,15),c(7,15))
 
@@ -1338,7 +1379,7 @@ knn_metrices[7:11] %>%
     theme_box() %>% 
     autofit()
 ```
-```{r}
+```{r, echo=FALSE}
 set.seed(123) 
 comb <- list(c(18,13,19),c(18,13,7),c(18,13,15),c(18,19,7),c(18,19,15),c(18,7,15),c(13,19,7),c(13,19,15),c(13,7,15),c(19,7,15))
 
@@ -1409,7 +1450,7 @@ dataTransform <- preProcess(test.num3, method=c("center", "scale"))
 test.num3.std <- predict(dataTransform, test.num3)
 test.num3.std$Class <- as.factor(test.num3$Class)
 ```
-```{r}
+```{r, echo=FALSE}
 set.seed(123) 
 train.balanced1.std$Class <- as.factor(train.balanced1$Class)
 test.num1.std$Class <- as.factor(test.num1$Class)
@@ -1454,9 +1495,9 @@ lda_metrices2 %>%
 ## Random tree
 
 ### Method
-We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA (Age, Steroid, AlkPhosphate, Sgot).
 
-```{r}
+```{r, echo=FALSE}
 mod1 <- Class ~ . - Class
 mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 ```
@@ -1485,7 +1526,7 @@ train0 <- to_categorical(train0)
 test0 <- to_categorical(test0)
 ```
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123)
 
 full.tree1 <- rpart(mod1, data=train1, control=rpart.control(cp=-1, minsplit=5))
@@ -1518,7 +1559,7 @@ cp.opt8 <- 0.062
 
 Now, we prune trees.
 
-```{r}
+```{r, echo=FALSE}
 full.tree1.pruned <- prune(full.tree1, cp = cp.opt1)
 full.tree2.pruned <- prune(full.tree2, cp = cp.opt2)
 full.tree3.pruned <- prune(full.tree3, cp = cp.opt3)
@@ -1531,9 +1572,9 @@ full.tree8.pruned <- prune(full.tree8, cp = cp.opt8)
 
 In the additional file, we can find basic information about the trees.
 
-Now, let's visualize all the trees. They are pretty different: from a tree with only 2 splits to a tree with many splits.
+Let's visualize all the trees. They are pretty different: from a tree with only 2 splits to a tree with many splits.
 
-```{r}
+```{r, echo=FALSE}
 rpart.plot(full.tree1.pruned)
 rpart.plot(full.tree2.pruned)
 rpart.plot(full.tree3.pruned)
@@ -1549,7 +1590,7 @@ Since we have the same splits, we can use the same n, p, colors.
 
 There are false predictions in all models, not so few, especially many false negative values.
 
-```{r}
+```{r, echo=FALSE}
 pred.probs1 <- predict(full.tree1.pruned, newdata=test1, type = "prob")
 pred.probs2 <- predict(full.tree2.pruned, newdata=test2, type = "prob")
 pred.probs3 <- predict(full.tree3.pruned, newdata=test3, type = "prob")
@@ -1624,9 +1665,9 @@ p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
 ```
 
-Predicted class labels.
+The last step is to predict class labels.
 
-```{r}
+```{r, echo=FALSE}
 pred.labels1 <- predict(full.tree1.pruned, newdata=test1, type = "class")
 pred.labels2 <- predict(full.tree2.pruned, newdata=test2, type = "class")
 pred.labels3 <- predict(full.tree3.pruned, newdata=test3, type = "class")
@@ -1726,7 +1767,7 @@ tree_statistics <- round(tree_statistics,2)
 tree_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), tree_statistics)
 ```
 
-```{r}
+```{r, echo=FALSE}
 tree_statistics %>%
     flextable() %>%
     theme_box() %>%
@@ -1757,16 +1798,16 @@ To sum up, the best Random tree model is the **6th** one: model without variable
 
 ### Method
 
-We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA (Age, Steroid, AlkPhosphate, Sgot).
 
-```{r}
+```{r, echo=FALSE}
 mod1 <- Class ~ . - Class
 mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 ```
 
 Building random forest for different models and datasets (for different imputation methods and initial with missing values).
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123)
 
 btree1 <- bagging(mod1, data=train1, nbagg=150, coob=TRUE, minsplit=2, cp=0)
@@ -1787,7 +1828,7 @@ Since we have the same splits, we can use the same n, p, colors.
 
 The results are not so good, because there are false predictions in all models and many probabilities in the middle.
 
-```{r}
+```{r, echo=FALSE}
 pred.probs1 <- predict(btree1, newdata=test1, type = "prob")
 pred.probs2 <- predict(btree2, newdata=test2, type = "prob")
 pred.probs3 <- predict(btree3, newdata=test3, type = "prob")
@@ -1862,9 +1903,9 @@ p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
 ```
 
-Predicted class labels.
+Predict class labels.
 
-```{r}
+```{r, echo=FALSE}
 pred.labels1 <- predict(btree1, newdata=test1, type = "class")
 pred.labels2 <- predict(btree2, newdata=test2, type = "class")
 pred.labels3 <- predict(btree3, newdata=test3, type = "class")
@@ -1954,7 +1995,7 @@ btree_statistics <- round(btree_statistics,2)
 btree_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), btree_statistics)
 ```
 
-```{r}
+```{r, echo=FALSE}
 btree_statistics %>%
     flextable() %>%
     theme_box() %>%
@@ -1985,16 +2026,16 @@ To sum up, the best Bagging model is the **6th** one: model without variables th
 
 ### Method
 
-We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA.
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA (Age, Steroid, AlkPhosphate, Sgot).
 
-```{r}
+```{r, echo=FALSE}
 mod1 <- Class ~ . - Class
 mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 ```
 
 Building random forest for different models and datasets (for different imputation methods).
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123)
 
 boost1 <- ada(mod1, data=train1, iter = 10)
@@ -2015,7 +2056,7 @@ Since we have the same splits, we can use the same n, p, colors.
 
 The results are not so good, because there are false predictions in all models and many probabilities in the middle.
 
-```{r}
+```{r, echo=FALSE}
 pred.probs1 <- predict(boost1, newdata=test1, type = "prob")
 pred.probs2 <- predict(boost2, newdata=test2, type = "prob")
 pred.probs3 <- predict(boost3, newdata=test3, type = "prob")
@@ -2090,9 +2131,9 @@ p8 <- ggplot(pred.prob.plot8, aes(x = probability)) +
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, nrow = 2)
 ```
 
-Predicted class labels.
+Predict class labels.
 
-```{r}
+```{r, echo=FALSE}
 pred.labels1 <- predict(boost1, newdata=test1)
 pred.labels2 <- predict(boost2, newdata=test2)
 pred.labels3 <- predict(boost3, newdata=test3)
@@ -2185,7 +2226,7 @@ boost_statistics <- round(boost_statistics,2)
 boost_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), boost_statistics)
 ```
 
-```{r}
+```{r, echo=FALSE}
 boost_statistics %>%
     flextable() %>%
     theme_box() %>%
@@ -2216,9 +2257,9 @@ To sum up, the best Boosting model is the **6th** one: model without variables t
 
 ### Method
 
-We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA. Also we need number of features.
+We can use both numeric and categorical data. Let's specify model formula. We use all attributes and also model without variables that are useless from EDA (Age, Steroid, AlkPhosphate, Sgot). Also we need number of features.
 
-```{r}
+```{r, echo=FALSE}
 mod1 <- Class ~ . - Class
 mod2 <- Class ~ . - Class - Age - Steroid - AlkPhosphate - Sgot
 
@@ -2228,7 +2269,7 @@ p2 <-  ncol(test1) - 5
 
 Building random forest for different models, parameters (ntree - number of trees, mtry - number of randomly selected features), and datasets (for different imputation methods).
 
-```{r}
+```{r, echo=FALSE}
 set.seed(123) 
 
 rf1 <- randomForest(mod1, data=train1, ntree=500, mtry=p1, importance=TRUE)
@@ -2254,7 +2295,7 @@ Now, let's create a plot that displays the importance of each predictor variable
 
 In the additional file, we can see variable importance ranking for other random forest models. The results are different, but for each model, Protime is in the first place. 
 
-```{r}
+```{r, echo=FALSE}
 varImpPlot(rf1, main = "Variable Importance Plot")
 ```
 
@@ -2263,7 +2304,7 @@ Since we have the same splits, we can use the same n, p, colors.
 
 The results are not so good, because there are false predictions in all models and many probabilities in the middle.
 
-```{r}
+```{r, echo=FALSE}
 pred.probs1 <- predict(rf1, newdata=test1, type = "prob")
 pred.probs2 <- predict(rf2, newdata=test2, type = "prob")
 pred.probs3 <- predict(rf3, newdata=test3, type = "prob")
@@ -2370,9 +2411,9 @@ p12 <- ggplot(pred.prob.plot12, aes(x = probability)) +
 ggarrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, ncol = 3, nrow = 4)
 ```
 
-Predicted class labels.
+Predict class labels.
 
-```{r}
+```{r, echo=FALSE}
 pred.labels1 <- predict(rf1, newdata=test1, type = "class")
 pred.labels2 <- predict(rf2, newdata=test2, type = "class")
 pred.labels3 <- predict(rf3, newdata=test3, type = "class")
@@ -2502,7 +2543,7 @@ rf_statistics <- round(rf_statistics,2)
 rf_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity", "F1", "Balanced Accuracy", "10-fold CV error", "Bootstrap error"), rf_statistics)
 ```
 
-```{r}
+```{r, echo=FALSE}
 rf_statistics %>%
     flextable() %>%
     theme_box() %>%
@@ -2540,7 +2581,7 @@ all_statistics <- cbind(name=c("Accuracy", "Kappa", "Sensitivity", "Specificity"
 colnames(all_statistics) <- c("metric","Linear regression","LDA","QDA","Logistic regression","KNN","Random Tree", "Bagging Tree", "Boosted Tree", "Random Forest")
 ```
 
-```{r}
+```{r, echo=FALSE}
 all_statistics[1:5] %>%
     flextable() %>%
     theme_box() %>%
